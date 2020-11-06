@@ -200,8 +200,10 @@ def main():
         GlfwContext(offscreen=True)
 
     if args.demo:
+        most_recent_step = 0
         eval_stats = experiments.eval_performance(
-            env=eval_env, agent=agent, n_steps=None, n_episodes=args.eval_n_runs
+            env=eval_env, agent=agent, n_steps=None, n_episodes=args.eval_n_runs,
+            video_outdir=args.outdir, step_number=-1  # justNonNoneObjectForRecording
         )
         print(
             "n_runs: {} mean: {} median: {} stdev {}".format(
