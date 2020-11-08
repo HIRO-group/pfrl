@@ -226,6 +226,19 @@ class HIROAgent(HRLAgent):
         self.subgoal_freq = temporal_delay
         self.high_con.agent.change_temporal_delay(temporal_delay)
 
+    def evaluate_final_goal(self, fg, obs):
+        """
+        evaluates the final goal compared with the current observation.
+        """
+        goal_size = fg.shape[0]
+        error = np.sqrt(np.sum(np.square(fg - obs[:goal_size])))
+        if goal_size == 2:
+            print('Goal, Curr: (%02.2f, %02.2f, %02.2f, %02.2f)     Error:%.2f'%(fg[0], fg[1], obs[0], obs[1], error))
+        elif goal_size == 3:
+            print('Goal, Curr: (%02.2f, %02.2f, %02.2f, %02.2f, %02.2f, %02.2f)     Error:%.2f'%(fg[0], fg[1], fg[2], obs[0], obs[1], obs[2], error))
+        success = error <= 5
+        return success
+
     def get_statistics(self):
         """
         gets the statistics of all of the actors and critics for the high
@@ -237,6 +250,10 @@ class HIROAgent(HRLAgent):
             ("low_con_average_q_func1_loss", _mean_or_nan(self.low_con.agent.q_func1_loss_record)),
             ("low_con_average_q_func2_loss", _mean_or_nan(self.low_con.agent.q_func2_loss_record)),
             ("low_con_average_policy_loss", _mean_or_nan(self.low_con.agent.policy_loss_record)),
+            ("low_con_q1_recent_variance", _mean_or_nan(self.low_con.agent.q_func1_variance_record)),
+            ("low_con_q2_recent_variance", _mean_or_nan(self.low_con.agent.q_func2_variance_record)),
+            ("low_con_policy_gradients_variance", _mean_or_nan(self.low_con.agent.policy_gradients_variance_record)),
+            ("low_con_policy_gradients_mean", _mean_or_nan(self.low_con.agent.policy_gradients_mean_record)),
             ("low_con_policy_n_updates", self.low_con.agent.policy_n_updates),
             ("low_con_q_func_n_updates", self.low_con.agent.q_func_n_updates),
 
@@ -245,6 +262,10 @@ class HIROAgent(HRLAgent):
             ("high_con_average_q_func1_loss", _mean_or_nan(self.high_con.agent.q_func1_loss_record)),
             ("high_con_average_q_func2_loss", _mean_or_nan(self.high_con.agent.q_func2_loss_record)),
             ("high_con_average_policy_loss", _mean_or_nan(self.high_con.agent.policy_loss_record)),
+            ("high_con_q1_recent_variance", _mean_or_nan(self.high_con.agent.q_func1_variance_record)),
+            ("high_con_q2_recent_variance", _mean_or_nan(self.high_con.agent.q_func2_variance_record)),
+            ("high_con_policy_gradients_variance", _mean_or_nan(self.high_con.agent.policy_gradients_variance_record)),
+            ("high_con_policy_gradients_mean", _mean_or_nan(self.high_con.agent.policy_gradients_mean_record)),
             ("high_con_policy_n_updates", self.high_con.agent.policy_n_updates),
             ("high_con_q_func_n_updates", self.high_con.agent.q_func_n_updates),
         ]

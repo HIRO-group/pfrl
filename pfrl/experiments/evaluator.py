@@ -11,6 +11,7 @@ import numpy as np
 import pfrl
 from pfrl.utils import concat_obs_and_goal
 
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
 """Columns that describe information about an experiment.
 
@@ -90,20 +91,28 @@ def _run_episodes(
 
 def _hrl_run_episodes(
     env, agent: HIROAgent, n_steps, n_episodes, max_episode_len=None, logger=None,
+    step_number=None, video_outdir=None
 ):
     """Run multiple episodes and return returns."""
     assert (n_steps is None) != (n_episodes is None)
 
+
+    evaluation_videos_dir = f'{video_outdir}/evaluation_videos'
+    os.makedirs(evaluation_videos_dir, exist_ok=True)
+    video_recorder = VideoRecorder(env, path=f'{evaluation_videos_dir}/evaluation_{step_number}.mp4')
+    video_recorder.enabled = step_number is not None
+
     logger = logger or logging.getLogger(__name__)
     scores = []
     successes = 0
-    trials = 0
+    success_rate = 0
     terminate = False
     timestep = 0
     env.evaluate = True
     reset = True
     while not terminate:
         if reset:
+            # env.seed(np.random.randint(0, 2 ** 32 - 1))
             obs_dict = env.reset()
             fg = obs_dict['desired_goal']
             obs = obs_dict['observation']
@@ -115,10 +124,14 @@ def _hrl_run_episodes(
             test_r = 0
             episode_len = 0
             info = {}
+
         a = agent.act_low_level(obs, sg)
         obs_dict, r, done, info = env.step(a)
-        # select subgoal for the lower level controller.
+
+        video_recorder.capture_frame()
+
         obs = obs_dict['observation']
+        # select subgoal for the lower level controller.
         n_sg = agent.act_high_level(obs, fg, sg, timestep)
 
         test_r += r
@@ -143,16 +156,17 @@ def _hrl_run_episodes(
                 success_rate = successes / trials
                 logger.info(f"Success Rate: {success_rate}")
             else:
-                error = np.sqrt(np.sum(np.square(fg-obs[:2])))
-                print('Goal, Curr: (%02.2f, %02.2f, %02.2f, %02.2f)     Error:%.2f'%(fg[0], fg[1], obs[0], obs[1], error))
-                successes += 1 if error <=5 else 0
+                success = agent.evaluate_final_goal(fg, obs)
+                successes += 1 if success else 0
                 trials += 1
                 # success rate
                 success_rate = successes / trials
                 logger.info(f"Success Rate: {success_rate}")
+
             # As mixing float and numpy float causes errors in statistics
             # functions, here every score is cast to float.
             scores.append(float(test_r))
+
         if n_steps is None:
             terminate = len(scores) >= n_episodes
         else:
@@ -163,11 +177,18 @@ def _hrl_run_episodes(
         logger.info(
             "evaluation episode %s length:%s R:%s", len(scores), episode_len, test_r
         )
-    return scores
+    success_rate = successes / n_episodes
+    logger.info(f"Success Rate: {success_rate}")
+
+    if step_number is not None:
+        print("Saved video.")
+    video_recorder.close()
+    return scores, success_rate
 
 
 def run_evaluation_episodes(
     env, agent, n_steps, n_episodes, max_episode_len=None, logger=None,
+    step_number=None, video_outdir=None
 ):
     """Run multiple evaluation episodes and return returns.
 
@@ -193,6 +214,8 @@ def run_evaluation_episodes(
                 n_episodes=n_episodes,
                 max_episode_len=max_episode_len,
                 logger=logger,
+                step_number=step_number,
+                video_outdir=video_outdir
             )
         else:
             return _run_episodes(
@@ -348,7 +371,8 @@ def batch_run_evaluation_episodes(
 
 
 def eval_performance(
-    env, agent, n_steps, n_episodes, max_episode_len=None, logger=None
+    env, agent, n_steps, n_episodes, max_episode_len=None, logger=None,
+    step_number=None, video_outdir=None
 ):
     """Run multiple evaluation episodes and return statistics.
 
@@ -375,7 +399,7 @@ def eval_performance(
             n_steps,
             n_episodes,
             max_episode_len=max_episode_len,
-            logger=logger,
+            logger=logger
         )
     else:
         scores = run_evaluation_episodes(
@@ -385,15 +409,32 @@ def eval_performance(
             n_episodes,
             max_episode_len=max_episode_len,
             logger=logger,
+            step_number=step_number,
+            video_outdir=video_outdir
+
         )
-    stats = dict(
-        episodes=len(scores),
-        mean=statistics.mean(scores),
-        median=statistics.median(scores),
-        stdev=statistics.stdev(scores) if len(scores) >= 2 else 0.0,
-        max=np.max(scores),
-        min=np.min(scores),
-    )
+    if isinstance(scores, tuple):
+        reward_scores = scores[0]
+        success_rate = scores[1]
+        stats = dict(
+            episodes=len(reward_scores),
+            mean=statistics.mean(reward_scores),
+            median=statistics.median(reward_scores),
+            stdev=statistics.stdev(reward_scores) if len(reward_scores) >= 2 else 0.0,
+            max=np.max(reward_scores),
+            min=np.min(reward_scores),
+            success_rate=success_rate,
+        )
+
+    else:
+        stats = dict(
+            episodes=len(scores),
+            mean=statistics.mean(scores),
+            median=statistics.median(scores),
+            stdev=statistics.stdev(scores) if len(scores) >= 2 else 0.0,
+            max=np.max(scores),
+            min=np.min(scores),
+        )
     return stats
 
 
@@ -430,6 +471,10 @@ def record_tb_stats(summary_writer, agent_stats, eval_stats, t):
     for stat in ("mean", "median", "max", "min", "stdev"):
         value = eval_stats[stat]
         summary_writer.add_scalar("eval/" + stat, value, t, cur_time)
+
+    if "success_rate" in eval_stats:
+        value = eval_stats["success_rate"]
+        summary_writer.add_scalar("eval/success_rate", value, t, cur_time)
 
     summary_writer.add_scalar(
         "extras/meanplusstdev", eval_stats["mean"] + eval_stats["stdev"], t, cur_time
@@ -479,6 +524,7 @@ class Evaluator(object):
         save_best_so_far_agent=True,
         logger=None,
         use_tensorboard=False,
+        record=False
     ):
         assert (n_steps is None) != (n_episodes is None), (
             "One of n_steps or n_episodes must be None. "
@@ -500,6 +546,8 @@ class Evaluator(object):
         self.save_best_so_far_agent = save_best_so_far_agent
         self.logger = logger or logging.getLogger(__name__)
 
+        self.record = record
+
         # Write a header line first
         with open(os.path.join(self.outdir, "scores.txt"), "w") as f:
             custom_columns = tuple(t[0] for t in self.agent.get_statistics())
@@ -517,6 +565,8 @@ class Evaluator(object):
             self.n_episodes,
             max_episode_len=self.max_episode_len,
             logger=self.logger,
+            step_number=t if self.record else None,
+            video_outdir=self.outdir
         )
         elapsed = time.time() - self.start_time
         agent_stats = self.agent.get_statistics()
