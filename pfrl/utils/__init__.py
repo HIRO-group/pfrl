@@ -7,5 +7,4 @@ from pfrl.utils.pretrained_models import download_model  # NOQA
 from pfrl.utils.contexts import evaluating  # NOQA
 from pfrl.utils.stoppable_thread import StoppableThread  # NOQA
 from pfrl.utils.clip_l2_grad_norm import clip_l2_grad_norm_  # NOQA
-from pfrl.utils.concat_obs_and_goal import concat_obs_and_goal # NOQA
 from pfrl.utils.hrl_utils import _is_update, _mean_or_nan # NOQA

@@ -5,5 +5,4 @@ goal-conditioned environments.
 
 Current Algorithms used:
 
-- DDPG
 - HIRO (A HRL algorithm)
