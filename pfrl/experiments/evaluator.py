@@ -9,7 +9,6 @@ import time
 import numpy as np
 
 import pfrl
-from pfrl.utils import concat_obs_and_goal
 
 from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
@@ -55,19 +54,14 @@ def _run_episodes(
             test_r = 0
             episode_len = 0
             info = {}
-        if isinstance(obs, dict):
-            action = agent.act(concat_obs_and_goal(obs))
-        else:
-            action = agent.act(obs)
+
+        action = agent.act(obs)
         obs, r, done, info = env.step(action)
         test_r += r
         episode_len += 1
         timestep += 1
         reset = done or episode_len == max_episode_len or info.get("needs_reset", False)
-        if isinstance(obs, dict):
-            agent.observe(concat_obs_and_goal(obs), r, done, reset)
-        else:
-            agent.observe(obs, r, done, reset)
+        agent.observe(obs, r, done, reset)
 
         if reset:
             logger.info(
