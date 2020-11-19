@@ -24,26 +24,6 @@ from pfrl.agents.hrl.hiro_agent import HIROAgent
 FETCH_ENVS = ['FetchReach-v1', 'FetchSlide-v1', 'FetchPush-v1', 'FetchPickAndPlace-v1']
 
 
-class RecordMovie(gym.Wrapper):
-    """Record MP4 videos using pybullet's logging API."""
-
-    def __init__(self, env, dirname):
-        super().__init__(env)
-        self._episode_idx = -1
-        self._dirname = dirname
-
-    def reset(self):
-        obs = self.env.reset()
-        self._episode_idx += 1
-        import pybullet
-
-        pybullet.startStateLogging(
-            pybullet.STATE_LOGGING_VIDEO_MP4,
-            os.path.join(self._dirname, "{}.mp4".format(self._episode_idx)),
-        )
-        return obs
-
-
 def parse_rl_args():
     """
     parse arguments for
@@ -196,6 +176,7 @@ def main():
 
     # size of the subgoal is a hyperparameter
     env_subgoal_dim = 5
+    # TODO - change the limits, they are completely wrong
     limits = np.array([2, 2, 2, 0, 0, 0.3, 0.3, 0.3, 0.3, 0.3])[:env_subgoal_dim]
     subgoal_space = gym.spaces.Box(low=limits*-1, high=limits)
 
