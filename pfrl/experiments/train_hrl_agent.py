@@ -49,6 +49,13 @@ def train_hrl_agent(
             # take a step in the environment
             obs_dict, r, done, info = env.step(action)
             # env.render()
+
+            if 'compute_reward' in dir(env):
+                # use compute reward function, in this case
+                ag = obs_dict['achieved_goal']
+                dg = obs_dict['desired_goal']
+                r = env.compute_reward(ag, dg, None)
+
             obs = obs_dict['observation']
             n_sg = agent.act_high_level(obs, fg, sg, step, t)
 
