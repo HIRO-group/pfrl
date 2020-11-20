@@ -179,6 +179,7 @@ def main():
     # TODO - change the limits, they are completely wrong
     limits = np.array([0.2, 0.2, 0.2])
     subgoal_space = gym.spaces.Box(low=limits*-1, high=limits)
+    setattr(env, "subgoal_space", subgoal_space)
 
     env_state_dim = obs_space_dict.spaces['observation'].low.size
     env_goal_dim = obs_space_dict.spaces['desired_goal'].low.size
@@ -230,10 +231,12 @@ def main():
         )
     else:
         # train the hierarchical agent
+        train_env = make_env(test=False)
+        setattr(train_env, "subgoal_space", subgoal_space)
 
         experiments.train_hrl_agent_with_evaluation(
             agent=agent,
-            env=make_env(test=False),
+            env=train_env,
             steps=args.steps,
             outdir=args.outdir,
             eval_n_steps=None,
