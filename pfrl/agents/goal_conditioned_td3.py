@@ -122,7 +122,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         add_entropy=False,
         scale=1,
         entropy_target=None,
-        temperature_optimizer_lr=None,
+        temperature_optimizer_lr=3e-4,
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
@@ -131,7 +131,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.scale = scale
 
         self.entropy_target = entropy_target
-        initial_temperature = 1.0
+        self.initial_temperature = 1.0
 
         # code for learning an entropy term
         if self.entropy_target is not None:
