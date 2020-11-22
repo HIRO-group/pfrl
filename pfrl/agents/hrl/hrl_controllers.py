@@ -370,7 +370,7 @@ class HigherController(HRLControllerBase):
             action_arr = experience['action_arr']
             state_arr = experience['state_arr']
 
-            actions = self._sample_best_high_controller_actions(
+            actions = self._off_policy_corrections(
                 low_con,
                 self.minibatch_size,
                 states.cpu().data.numpy(),
