@@ -36,6 +36,8 @@ class HRLControllerBase():
             burnin_action_func=None,
             replay_start_size=2500):
         self.scale = scale
+        self.device = torch.device(f'cuda:{gpu}')
+        self.scale_tensor = torch.tensor(self.scale).float().to(self.device)
         # parameters
         self.expl_noise = expl_noise
         self.policy_noise = policy_noise
@@ -46,29 +48,39 @@ class HRLControllerBase():
         self.is_low_level = is_low_level
         self.minibatch_size = minibatch_size
         self.add_entropy = add_entropy
-        # create td3 agent
-        self.device = torch.device(f'cuda:{gpu}')
+
+        # create agent
         if self.add_entropy:
             def squashed_diagonal_gaussian_head(x):
-                mean, log_scale = torch.chunk(x, 2, dim=-1)
+                """
+                taken from the SAC code.
+                """
+                assert x.shape[-1] == action_dim * 2
+                mean, log_scale = torch.chunk(x, 2, dim=1)
                 log_scale = torch.clamp(log_scale, -20.0, 2.0)
                 var = torch.exp(log_scale * 2)
                 base_distribution = distributions.Independent(
                     distributions.Normal(loc=mean, scale=torch.sqrt(var)), 1
                 )
-                return base_distribution
+                # cache_size=1 is required for numerical stability
+                return distributions.transformed_distribution.TransformedDistribution(
+                    base_distribution, [distributions.transforms.TanhTransform(cache_size=1)]
+                )
 
+            # SAC policy definition:
             policy = nn.Sequential(
-                nn.Linear(state_dim + goal_dim, 300),
+                nn.Linear(state_dim + goal_dim, 256),
                 nn.ReLU(),
-                nn.Linear(300, 300),
+                nn.Linear(256, 256),
                 nn.ReLU(),
-                nn.Linear(300, action_dim * 2),
-                nn.Tanh(),
-                ConstantsMult(torch.cat((torch.tensor(self.scale), torch.ones(self.scale.size))).float().to(self.device)),
-                # pfrl.policies.DeterministicHead(),
+                nn.Linear(256, action_dim * 2),
                 Lambda(squashed_diagonal_gaussian_head),
                 )
+
+            torch.nn.init.xavier_uniform_(policy[0].weight)
+            torch.nn.init.xavier_uniform_(policy[2].weight)
+            torch.nn.init.xavier_uniform_(policy[4].weight)
+
         else:
             policy = nn.Sequential(
                 nn.Linear(state_dim + goal_dim, 300),
@@ -77,7 +89,7 @@ class HRLControllerBase():
                 nn.ReLU(),
                 nn.Linear(300, action_dim),
                 nn.Tanh(),
-                ConstantsMult(torch.tensor(self.scale).float().to(self.device)),
+                ConstantsMult(self.scale_tensor),
                 pfrl.policies.DeterministicHead(),
                 )
 
@@ -101,7 +113,7 @@ class HRLControllerBase():
         # TODO - have proper low and high values from action space.
         # from the hiro paper, the scale is 1.0
         explorer = explorers.AdditiveGaussian(
-            scale=self.expl_noise*1.0,
+            scale=self.expl_noise,
             low=-self.scale,
             high=self.scale
         )
@@ -113,6 +125,8 @@ class HRLControllerBase():
             smoothed_action = torch.min(smoothed_action, torch.tensor(self.scale).to(self.device).float())
             smoothed_action = torch.max(smoothed_action, torch.tensor(-self.scale).to(self.device).float())
             return smoothed_action
+
+        input_scale = self.scale_tensor if self.add_entropy else 1
 
         if self.is_low_level:
             # standard goal conditioned td3
@@ -134,6 +148,7 @@ class HRLControllerBase():
                 minibatch_size=minibatch_size,
                 gpu=gpu,
                 add_entropy=self.add_entropy,
+                scale=input_scale,
                 burnin_action_func=burnin_action_func,
                 target_policy_smoothing_func=default_target_policy_smoothing_func
                 )
@@ -151,11 +166,12 @@ class HRLControllerBase():
                 explorer=explorer,
                 update_interval=1,
                 policy_update_delay=policy_freq,
-                replay_start_size=replay_start_size/buffer_freq,
+                replay_start_size=replay_start_size/buffer_freq - 5,
                 buffer_freq=buffer_freq,
                 minibatch_size=minibatch_size,
                 gpu=gpu,
                 add_entropy=self.add_entropy,
+                scale=input_scale,
                 burnin_action_func=burnin_action_func,
                 target_policy_smoothing_func=default_target_policy_smoothing_func
                 )

@@ -97,7 +97,8 @@ class HIROHighLevelGoalConditionedTD3(GoalConditionedTD3):
         policy_grad_variance_record_size=100,
         recent_variance_size=100,
         target_policy_smoothing_func=default_target_policy_smoothing_func,
-        add_entropy=False
+        add_entropy=False,
+        scale=1
     ):
         # determines if we're dealing with a low level controller.
         self.cumulative_reward = False
@@ -127,7 +128,8 @@ class HIROHighLevelGoalConditionedTD3(GoalConditionedTD3):
                                                               policy_grad_variance_record_size=policy_grad_variance_record_size,
                                                               recent_variance_size=recent_variance_size,
                                                               target_policy_smoothing_func=target_policy_smoothing_func,
-                                                              add_entropy=add_entropy)
+                                                              add_entropy=add_entropy,
+                                                              scale=scale)
 
     def change_temporal_delay(self, new_temporal_delay):
         self.buffer_freq = new_temporal_delay
@@ -146,7 +148,6 @@ class HIROHighLevelGoalConditionedTD3(GoalConditionedTD3):
         Compute loss for a given Q-function, or critics
         for the high level controller
         """
-
         batch_next_state = batch["next_state"]
         batch_rewards = batch["reward"]
         batch_terminal = batch["is_state_terminal"]
@@ -161,13 +162,14 @@ class HIROHighLevelGoalConditionedTD3(GoalConditionedTD3):
             self.target_q_func2
         ):
             next_action_distrib = self.target_policy(torch.cat([batch_next_state, batch_goal], -1))
+            next_actions_normalized = next_action_distrib.sample()
             next_actions = self.target_policy_smoothing_func(
-                next_action_distrib.sample()
+                self.scale * next_actions_normalized
             )
 
             entropy_term = 0
             if self.add_entropy:
-                next_log_prob = next_action_distrib.log_prob(next_actions)
+                next_log_prob = next_action_distrib.log_prob(next_actions_normalized)
                 entropy_term = self.temperature * next_log_prob[..., None]
 
             next_q1 = self.target_q_func1((torch.cat([batch_next_state, batch_goal], -1), next_actions))

@@ -5,7 +5,6 @@ from pfrl.agent import HRLAgent
 from pfrl.agents import HIROAgent
 import statistics
 import time
-
 import numpy as np
 
 import pfrl
@@ -150,6 +149,7 @@ def _hrl_run_episodes(
         logger.info(
             "evaluation episode %s length:%s R:%s", len(scores), episode_len, test_r
         )
+
     success_rate = successes / n_episodes
     logger.info(f"Success Rate: {success_rate}")
 
@@ -384,7 +384,6 @@ def eval_performance(
             logger=logger,
             step_number=step_number,
             video_outdir=video_outdir
-
         )
     if isinstance(scores, tuple):
         reward_scores = scores[0]
@@ -520,7 +519,6 @@ class Evaluator(object):
         self.logger = logger or logging.getLogger(__name__)
 
         self.record = record
-
         # Write a header line first
         with open(os.path.join(self.outdir, "scores.txt"), "w") as f:
             custom_columns = tuple(t[0] for t in self.agent.get_statistics())
@@ -564,6 +562,7 @@ class Evaluator(object):
             self.max_score = mean
             if self.save_best_so_far_agent:
                 save_agent(self.agent, "best", self.outdir, self.logger)
+
         return mean
 
     def evaluate_if_necessary(self, t, episodes):
