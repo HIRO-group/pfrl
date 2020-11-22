@@ -120,7 +120,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         recent_variance_size=100,
         target_policy_smoothing_func=default_target_policy_smoothing_func,
         add_entropy=False,
-        scale=1
+        scale=1,
+        entropy_target=None,
+        temperature_optimizer_lr=None,
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
@@ -128,8 +130,28 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.add_entropy = add_entropy
         self.scale = scale
 
-        if add_entropy:
-            self.temperature = 1.0
+        self.entropy_target = entropy_target
+        initial_temperature = 1.0
+
+        # code for learning an entropy term
+        if self.entropy_target is not None:
+            self.temperature_holder = TemperatureHolder(
+                initial_log_temperature=np.log(initial_temperature)
+            )
+            if temperature_optimizer_lr is not None:
+                self.temperature_optimizer = torch.optim.Adam(
+                    self.temperature_holder.parameters(), lr=temperature_optimizer_lr
+                )
+            else:
+                self.temperature_optimizer = torch.optim.Adam(
+                    self.temperature_holder.parameters()
+                )
+            if gpu is not None and gpu >= 0:
+                self.temperature_holder.to(self.device)
+        else:
+            self.temperature_holder = None
+            self.temperature_optimizer = None
+
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
         self.q_func2_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
@@ -159,6 +181,14 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
                                                  burnin_action_func=burnin_action_func,
                                                  policy_update_delay=policy_update_delay,
                                                  target_policy_smoothing_func=target_policy_smoothing_func)
+
+    @property
+    def temperature(self):
+        if self.entropy_target is None:
+            return self.initial_temperature
+        else:
+            with torch.no_grad():
+                return float(self.temperature_holder())
 
     def update_q_func_with_goal(self, batch):
         """
@@ -242,6 +272,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         if self.add_entropy:
             log_prob = action_distrib.log_prob(onpolicy_actions_normalized)
             entropy_term = self.temperature * log_prob[..., None]
+
         q = self.q_func1((torch.cat([batch_state, batch_goal], -1), onpolicy_actions))
 
         # Since we want to maximize Q, loss is negation of Q
@@ -265,6 +296,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.policy_optimizer.step()
         self.policy_n_updates += 1
 
+        if self.add_entropy and self.entropy_target is not None:
+                self.update_temperature(log_prob.detach())
+
     def sample_if_possible(self):
         sample = self.replay_updater.can_update_then_sample(self.t)
         return sample if not sample else sample[0]
@@ -286,6 +320,15 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         if self.q_func_n_updates % self.policy_update_delay == 0:
             self.update_policy_with_goal(batch)
             self.sync_target_network()
+
+    def update_temperature(self, log_prob):
+        assert not log_prob.requires_grad
+        loss = -torch.mean(self.temperature_holder() * (log_prob + self.entropy_target))
+        self.temperature_optimizer.zero_grad()
+        loss.backward()
+        if self.max_grad_norm is not None:
+            clip_l2_grad_norm_(self.temperature_holder.parameters(), self.max_grad_norm)
+        self.temperature_optimizer.step()
 
     def batch_select_onpolicy_action(self, batch_obs):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
