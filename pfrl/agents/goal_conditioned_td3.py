@@ -136,7 +136,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         # code for learning an entropy term
         if self.entropy_target is not None:
             self.temperature_holder = TemperatureHolder(
-                initial_log_temperature=np.log(initial_temperature)
+                initial_log_temperature=np.log(self.initial_temperature)
             )
             if temperature_optimizer_lr is not None:
                 self.temperature_optimizer = torch.optim.Adam(
@@ -297,7 +297,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.policy_n_updates += 1
 
         if self.add_entropy and self.entropy_target is not None:
-                self.update_temperature(log_prob.detach())
+            self.update_temperature(log_prob.detach())
 
     def sample_if_possible(self):
         sample = self.replay_updater.can_update_then_sample(self.t)
