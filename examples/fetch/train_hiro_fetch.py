@@ -82,7 +82,7 @@ def parse_rl_args():
     parser.add_argument(
         "--eval-n-runs",
         type=int,
-        default=100,
+        default=5,
         help="Number of episodes used for evaluation.",
     )
     parser.add_argument(
@@ -220,7 +220,8 @@ def main():
     if args.demo:
         eval_stats = experiments.eval_performance(
             env=env, agent=agent, n_steps=None, n_episodes=args.eval_n_runs,
-            max_episode_len=500
+            max_episode_len=300,
+            video_outdir=args.outdir, step_number=-1 if args.record else None # justNonNoneObjectForRecording
         )
         print(
             "n_runs: {} mean: {} median: {} stdev {}".format(
