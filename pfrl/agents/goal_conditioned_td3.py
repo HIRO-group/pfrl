@@ -1,9 +1,10 @@
 from logging import getLogger
-
 import collections
+
 import numpy as np
 import torch
 from torch.nn import functional as F
+from torch import nn
 
 import pfrl
 from pfrl.agent import GoalConditionedBatchAgent
@@ -17,6 +18,24 @@ def default_target_policy_smoothing_func(batch_action):
     """Add noises to actions for target policy smoothing."""
     noise = torch.clamp(0.2 * torch.randn_like(batch_action), -0.5, 0.5)
     return torch.clamp(batch_action + noise, -1, 1)
+
+
+class TemperatureHolder(nn.Module):
+    """Module that holds a temperature as a learnable value.
+
+    Args:
+        initial_log_temperature (float): Initial value of log(temperature).
+    """
+
+    def __init__(self, initial_log_temperature=0):
+        super().__init__()
+        self.log_temperature = nn.Parameter(
+            torch.tensor(initial_log_temperature, dtype=torch.float32)
+        )
+
+    def forward(self):
+        """Return a temperature as a torch.Tensor."""
+        return torch.exp(self.log_temperature)
 
 
 class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
@@ -100,15 +119,18 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         policy_grad_variance_record_size=100,
         recent_variance_size=100,
         target_policy_smoothing_func=default_target_policy_smoothing_func,
-        add_entropy=False
+        add_entropy=False,
+        scale=1
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
         self.recent_variance_size = recent_variance_size
         self.add_entropy = add_entropy
+        self.scale = scale
 
         if add_entropy:
             self.temperature = 1.0
+
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
         self.q_func2_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
 
@@ -158,13 +180,14 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             self.target_q_func2
         ):
             next_action_distrib = self.target_policy(torch.cat([batch_next_state, batch_next_goal], -1))
+            next_actions_normalized = next_action_distrib.sample()
             next_actions = self.target_policy_smoothing_func(
-                next_action_distrib.sample()
+                self.scale * next_actions_normalized
             )
 
             entropy_term = 0
             if self.add_entropy:
-                next_log_prob = next_action_distrib.log_prob(next_actions)
+                next_log_prob = next_action_distrib.log_prob(next_actions_normalized)
                 entropy_term = self.temperature * next_log_prob[..., None]
 
             next_q1 = self.target_q_func1((torch.cat([batch_next_state, batch_next_goal], -1), next_actions))
@@ -213,10 +236,11 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         batch_state = batch["state"]
         batch_goal = batch["goal"]
         action_distrib = self.policy(torch.cat([batch_state, batch_goal], -1))
-        onpolicy_actions = action_distrib.rsample()
+        onpolicy_actions_normalized = action_distrib.rsample()
+        onpolicy_actions = self.scale * onpolicy_actions_normalized
         entropy_term = 0
         if self.add_entropy:
-            log_prob = action_distrib.log_prob(onpolicy_actions)
+            log_prob = action_distrib.log_prob(onpolicy_actions_normalized)
             entropy_term = self.temperature * log_prob[..., None]
         q = self.q_func1((torch.cat([batch_state, batch_goal], -1), onpolicy_actions))
 
@@ -228,9 +252,11 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         loss.backward()
 
         # get policy gradients
-        gradients = self.get_and_flatten_policy_gradients()
-        gradient_variance = torch.var(gradients)
-        gradient_mean = torch.mean(gradients)
+        # gradients = self.get_and_flatten_policy_gradients()
+        # gradient_variance = torch.var(gradients)
+        # gradient_mean = torch.mean(gradients)
+        gradient_variance = 0
+        gradient_mean = 0
         self.policy_gradients_variance_record.append(float(gradient_variance))
         self.policy_gradients_mean_record.append(float(gradient_mean))
 
@@ -264,7 +290,10 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
     def batch_select_onpolicy_action(self, batch_obs):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
-            batch_action = self.policy(batch_xs).sample().cpu().numpy()
+            batch_action = self.policy(batch_xs).sample()
+            batch_action = self.scale * batch_action
+            batch_action = batch_action.cpu().numpy()
+
         return list(batch_action)
 
     def batch_act_with_goal(self, batch_obs, batch_goal):

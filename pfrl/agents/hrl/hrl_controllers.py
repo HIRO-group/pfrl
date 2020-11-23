@@ -36,6 +36,8 @@ class HRLControllerBase():
             burnin_action_func=None,
             replay_start_size=2500):
         self.scale = scale
+        self.device = torch.device(f'cuda:{gpu}')
+        self.scale_tensor = torch.tensor(self.scale).float().to(self.device)
         # parameters
         self.expl_noise = expl_noise
         self.policy_noise = policy_noise
@@ -46,29 +48,39 @@ class HRLControllerBase():
         self.is_low_level = is_low_level
         self.minibatch_size = minibatch_size
         self.add_entropy = add_entropy
-        # create td3 agent
-        self.device = torch.device(f'cuda:{gpu}')
+
+        # create agent
         if self.add_entropy:
             def squashed_diagonal_gaussian_head(x):
-                mean, log_scale = torch.chunk(x, 2, dim=-1)
+                """
+                taken from the SAC code.
+                """
+                assert x.shape[-1] == action_dim * 2
+                mean, log_scale = torch.chunk(x, 2, dim=1)
                 log_scale = torch.clamp(log_scale, -20.0, 2.0)
                 var = torch.exp(log_scale * 2)
                 base_distribution = distributions.Independent(
                     distributions.Normal(loc=mean, scale=torch.sqrt(var)), 1
                 )
-                return base_distribution
+                # cache_size=1 is required for numerical stability
+                return distributions.transformed_distribution.TransformedDistribution(
+                    base_distribution, [distributions.transforms.TanhTransform(cache_size=1)]
+                )
 
+            # SAC policy definition:
             policy = nn.Sequential(
-                nn.Linear(state_dim + goal_dim, 300),
+                nn.Linear(state_dim + goal_dim, 256),
                 nn.ReLU(),
-                nn.Linear(300, 300),
+                nn.Linear(256, 256),
                 nn.ReLU(),
-                nn.Linear(300, action_dim * 2),
-                nn.Tanh(),
-                ConstantsMult(torch.cat((torch.tensor(self.scale), torch.ones(self.scale.size))).float().to(self.device)),
-                # pfrl.policies.DeterministicHead(),
+                nn.Linear(256, action_dim * 2),
                 Lambda(squashed_diagonal_gaussian_head),
                 )
+
+            torch.nn.init.xavier_uniform_(policy[0].weight)
+            torch.nn.init.xavier_uniform_(policy[2].weight)
+            torch.nn.init.xavier_uniform_(policy[4].weight)
+
         else:
             policy = nn.Sequential(
                 nn.Linear(state_dim + goal_dim, 300),
@@ -77,7 +89,7 @@ class HRLControllerBase():
                 nn.ReLU(),
                 nn.Linear(300, action_dim),
                 nn.Tanh(),
-                ConstantsMult(torch.tensor(self.scale).float().to(self.device)),
+                ConstantsMult(self.scale_tensor),
                 pfrl.policies.DeterministicHead(),
                 )
 
@@ -101,7 +113,7 @@ class HRLControllerBase():
         # TODO - have proper low and high values from action space.
         # from the hiro paper, the scale is 1.0
         explorer = explorers.AdditiveGaussian(
-            scale=self.expl_noise*1.0,
+            scale=self.expl_noise,
             low=-self.scale,
             high=self.scale
         )
@@ -113,6 +125,8 @@ class HRLControllerBase():
             smoothed_action = torch.min(smoothed_action, torch.tensor(self.scale).to(self.device).float())
             smoothed_action = torch.max(smoothed_action, torch.tensor(-self.scale).to(self.device).float())
             return smoothed_action
+
+        input_scale = self.scale_tensor if self.add_entropy else 1
 
         if self.is_low_level:
             # standard goal conditioned td3
@@ -134,6 +148,7 @@ class HRLControllerBase():
                 minibatch_size=minibatch_size,
                 gpu=gpu,
                 add_entropy=self.add_entropy,
+                scale=input_scale,
                 burnin_action_func=burnin_action_func,
                 target_policy_smoothing_func=default_target_policy_smoothing_func
                 )
@@ -151,11 +166,12 @@ class HRLControllerBase():
                 explorer=explorer,
                 update_interval=1,
                 policy_update_delay=policy_freq,
-                replay_start_size=replay_start_size/buffer_freq,
+                replay_start_size=replay_start_size/buffer_freq - 5,
                 buffer_freq=buffer_freq,
                 minibatch_size=minibatch_size,
                 gpu=gpu,
                 add_entropy=self.add_entropy,
+                scale=input_scale,
                 burnin_action_func=burnin_action_func,
                 target_policy_smoothing_func=default_target_policy_smoothing_func
                 )
@@ -206,7 +222,7 @@ class LowerController(HRLControllerBase):
             add_entropy,
             actor_lr=0.0001,
             critic_lr=0.001,
-            expl_noise=0.1,
+            expl_noise=1.0,
             policy_noise=0.2,
             noise_clip=0.5,
             gamma=0.99,
@@ -256,7 +272,7 @@ class HigherController(HRLControllerBase):
             add_entropy,
             actor_lr=0.0001,
             critic_lr=0.001,
-            expl_noise=0.1,
+            expl_noise=1.0,
             policy_noise=0.2,
             noise_clip=0.5,
             gamma=0.99,
@@ -289,78 +305,77 @@ class HigherController(HRLControllerBase):
                                                 burnin_action_func=burnin_action_func)
         self.action_dim = action_dim
 
-    def _off_policy_corrections(self, low_con, batch_size, sgoals, states, actions, candidate_goals=8):
-        """
-        implementation of the novel off policy correction in the HIRO paper.
-        """
+    def _off_policy_corrections(self,
+        low_con,
+        batch_size,
+        states,
+        actions,
+        next_states,
+        low_states,
+        low_actions,
+        candidate_goals=8):
+        # Scale
+        goal_dim = self.action_dim
+        spec_range = low_con.scale
+        # Sample from normal distribution
+        loc = (next_states - states)[:, np.newaxis, :goal_dim]
+        scale = 0.5 * self.scale[None, None, :]
+        original_goal = np.array(actions[:, np.newaxis, :])
+        random_goals = np.random.normal(loc=loc, scale=scale, size=(batch_size, candidate_goals, original_goal.shape[-1]))
 
-        first_s = [s[0] for s in states]  # First x
-        last_s = [s[-1] for s in states]  # Last x
-
-        # Shape: (batch_size, 1, subgoal_dim)
-        # diff = 1
-        # different in goals
-        diff_goal = (np.array(last_s) -
-                     np.array(first_s))[:, np.newaxis, :self.action_dim]
-
-        # Shape: (batch_size, 1, subgoal_dim)
-        # original = 1
-        # random = candidate_goals
-        original_goal = np.array(sgoals)[:, np.newaxis, :]
-        # select random goals
-        random_goals = np.random.normal(loc=diff_goal, scale=.5*self.scale[None, None, :],
-                                        size=(batch_size, candidate_goals, original_goal.shape[-1]))
-        random_goals = random_goals.clip(-self.scale, self.scale)
-
-        # Shape: (batch_size, 10, subgoal_dim)
-        candidates = np.concatenate([original_goal, diff_goal, random_goals], axis=1)
-        # states = np.array(states)[:, :-1, :]
-        actions = np.array(actions)
-        seq_len = len(states[0])
+        candidates = np.concatenate([original_goal, loc, random_goals], axis=1)
+        candidates = candidates.clip(-self.scale, self.scale)
 
         # For ease
+        low_actions = np.array(low_actions)
+        seq_len = len(low_states[0])
         new_batch_sz = seq_len * batch_size
-        action_dim = actions[0][0].shape
-        obs_dim = states[0][0].shape
+        low_action_dim = low_actions[0][0].shape
+        low_obs_dim = low_states[0][0].shape
         ncands = candidates.shape[1]
 
-        true_actions = actions.reshape((new_batch_sz,) + action_dim)
-        observations = states.reshape((new_batch_sz,) + obs_dim)
+        true_low_actions = low_actions.reshape((new_batch_sz,) + low_action_dim)
+        observations = low_states.reshape((new_batch_sz,) + low_obs_dim)
         goal_shape = (new_batch_sz, self.action_dim)
-        # observations = get_obs_tensor(observations, sg_corrections=True)
 
-        # batched_candidates = np.tile(candidates, [seq_len, 1, 1])
-        # batched_candidates = batched_candidates.transpose(1, 0, 2)
+        pred_actions = np.zeros((ncands, new_batch_sz) + low_action_dim)
 
-        policy_actions = np.zeros((ncands, new_batch_sz) + action_dim)
         low_con.agent.training = False
         for c in range(ncands):
-            subgoal = candidates[:,c]
-            candidate = (subgoal + states[:, 0, :self.action_dim])[:, None] - states[:, :, :self.action_dim]
+            subgoal = candidates[:, c]
+            candidate = (subgoal + low_states[:, 0, :self.action_dim])[:, None] - low_states[:, :, :self.action_dim]
             candidate = candidate.reshape(*goal_shape)
-            policy_actions[c] = low_con.policy(torch.tensor(observations).float(), torch.tensor(candidate).float())
+            pred_actions[c] = low_con.policy(torch.tensor(observations).float(), torch.tensor(candidate).float())
         low_con.agent.training = True
 
-        difference = (policy_actions - true_actions)
-        difference = np.where(difference != -np.inf, difference, 0)
-        difference = difference.reshape((ncands, batch_size, seq_len) + action_dim).transpose(1, 0, 2, 3)
+        difference = (pred_actions - true_low_actions)
+        # difference = np.where(difference != -np.inf, difference, 0)
+        difference = difference.reshape((ncands, batch_size, seq_len) + low_action_dim).transpose(1, 0, 2, 3)
 
-        logprob = -0.5*np.sum(np.linalg.norm(difference, axis=-1)**2, axis=-1)
-        max_indices = np.argmax(logprob, axis=-1)
-        # return best candidates with maximum probability
-        return candidates[np.arange(batch_size), max_indices]
+        normalized_error = - np.square(difference) / np.square(spec_range)
+        fitness = np.sum(normalized_error, axis=(2, 3))
+        best_actions = np.argmax(fitness, axis=-1)
+
+        return candidates[np.arange(batch_size), best_actions]
+
 
     def update(self, low_con):
         batch = self.agent.sample_if_possible()
         if batch:
-            experience = high_level_batch_experiences_with_goal(batch, self.device, lambda x: x, self.gamma)
+            experience = high_level_batch_experiences_with_goal(batch, self.device,
+                lambda x: x, self.gamma)
+            states = experience['state']
             actions = experience['action']
+            next_states = experience['next_state']
             action_arr = experience['action_arr']
             state_arr = experience['state_arr']
+
             actions = self._off_policy_corrections(
                 low_con,
                 self.minibatch_size,
+                states.cpu().data.numpy(),
                 actions.cpu().data.numpy(),
+                next_states.cpu().data.numpy(),
                 state_arr.cpu().data.numpy(),
                 action_arr.cpu().data.numpy())
 
