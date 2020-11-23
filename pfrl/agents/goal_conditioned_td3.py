@@ -10,6 +10,7 @@ import pfrl
 from pfrl.agent import GoalConditionedBatchAgent
 from pfrl.agents import TD3
 from pfrl.utils.batch_states import batch_states
+from pfrl.utils.mode_of_distribution import mode_of_distribution
 from pfrl.replay_buffer import batch_experiences_with_goal
 from pfrl.utils import clip_l2_grad_norm_, _mean_or_nan
 
@@ -123,6 +124,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         scale=1,
         entropy_target=None,
         temperature_optimizer_lr=3e-4,
+        act_deterministically = True
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
@@ -152,6 +154,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             self.temperature_holder = None
             self.temperature_optimizer = None
 
+        self.act_deterministically = False if self.entropy_target is None else act_deterministically
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
         self.q_func2_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
@@ -330,10 +333,14 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             clip_l2_grad_norm_(self.temperature_holder.parameters(), self.max_grad_norm)
         self.temperature_optimizer.step()
 
-    def batch_select_onpolicy_action(self, batch_obs):
+    def batch_select_onpolicy_action(self, batch_obs, deterministic=False):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
-            batch_action = self.policy(batch_xs).sample()
+            policy_out = self.policy(batch_xs)
+            if deterministic:
+                batch_action = mode_of_distribution(policy_out)
+            else:
+                batch_action = policy_out.sample()
             batch_action = self.scale * batch_action
             batch_action = batch_action.cpu().numpy()
 
@@ -357,7 +364,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         concat_states = []
         for idx, ob in enumerate(batch_obs):
             concat_states.append(torch.cat([ob, batch_goal[idx]], dim=-1))
-        return self.batch_select_onpolicy_action(concat_states)
+        return self.batch_select_onpolicy_action(concat_states, self.act_deterministically)
 
     def _batch_act_train_goal(self, batch_obs, batch_goal):
         assert self.training
