@@ -10,7 +10,7 @@ from pfrl.replay_buffer import high_level_batch_experiences_with_goal
 from pfrl.agents import HIROHighLevelGoalConditionedTD3, GoalConditionedTD3
 from pfrl.nn import ConstantsMult
 from pfrl.nn.lmbda import Lambda
-from pfrl.distributions import StateDependentNoiseDistribution
+from pfrl.policies import gSDEHead
 
 
 class HRLControllerBase():
@@ -82,7 +82,7 @@ class HRLControllerBase():
                 nn.ReLU(),
                 nn.Linear(256, 256),
                 nn.ReLU(),
-                StateDependentNoiseDistribution(in_dim=256, out_dim=action_dim)
+                gSDEHead(in_dim=256, out_dim=action_dim).requires_grad_(True)
                 )
 
             torch.nn.init.xavier_uniform_(policy[0].weight)
@@ -162,7 +162,8 @@ class HRLControllerBase():
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
                 target_policy_smoothing_func=default_target_policy_smoothing_func,
-                entropy_temperature=temperature
+                entropy_temperature=temperature,
+                use_sde=self.add_entropy
                 )
         else:
             self.agent = HIROHighLevelGoalConditionedTD3(
@@ -186,7 +187,8 @@ class HRLControllerBase():
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
                 target_policy_smoothing_func=default_target_policy_smoothing_func,
-                entropy_temperature=temperature
+                entropy_temperature=temperature,
+                use_sde=self.add_entropy
                 )
 
         self.device = self.agent.device

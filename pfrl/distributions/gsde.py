@@ -5,7 +5,7 @@ from torch import nn
 from torch.distributions import constraints, Distribution
 
 
-def sum_independent_dims(tensor: th.Tensor) -> th.Tensor:
+def sum_independent_dims(tensor: torch.Tensor) -> torch.Tensor:
     """
     Continuous actions are usually considered to be independent,
     so we can sum components of the ``log_prob`` or the entropy.
@@ -19,7 +19,6 @@ def sum_independent_dims(tensor: th.Tensor) -> th.Tensor:
     return tensor
 
 
-# TODO: Delete self.loc
 class StateDependentNoiseDistribution(Distribution):
     """Delta distribution.
 
@@ -45,10 +44,7 @@ class StateDependentNoiseDistribution(Distribution):
         use_expln=False,
         epsilon: float = 1e-6,
         validate_args=None):
-        if isinstance(loc, Number):
-            batch_shape = torch.Size()
-        else:
-            batch_shape = self.loc.size()
+        batch_shape = torch.Size()
         super(StateDependentNoiseDistribution, self).__init__(batch_shape, validate_args=validate_args)
 
         self.in_dim = in_dim
@@ -65,9 +61,20 @@ class StateDependentNoiseDistribution(Distribution):
         self._log_std = torch.ones(in_dim, out_dim) if self.full_std else torch.ones(in_dim, 1)
         # Transform it to a parameter so it can be optimized
         self._log_std = nn.Parameter(self._log_std * log_std_init, requires_grad=True)
-        self.reset_noise(self._log_std)
+        self.reset_noise()
 
-    def reset_noise(self, log_std: th.Tensor, batch_size: int = 1) -> None:
+    @property
+    def mu(self):
+        return self._mu
+
+    @property
+    def log_std(self):
+        return self._log_std
+
+    def reset_noise(self):
+        self._reset_noise(self._log_std)
+
+    def _reset_noise(self, log_std: torch.Tensor, batch_size: int = 1) -> None:
         """
         Sample weights for the noise exploration matrix,
         using a centered Gaussian distribution.
