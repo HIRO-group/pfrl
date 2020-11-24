@@ -1,6 +1,7 @@
 from numbers import Number
 
 import torch
+from torch import nn
 from torch.distributions import constraints, Distribution
 
 
@@ -34,38 +35,59 @@ class StateDependentNoiseDistribution(Distribution):
     support = constraints.real  # type: ignore
     has_rsample = True
 
-    @property
-    def mean(self):
-        return self.distribution.mean
-
-    @property
-    def stddev(self):
-        return torch.zeros_like(self.loc)
-
-    @property
-    def mode(self):
-        return self.distribution.mean
-
-    @property
-    def variance(self):
-        return torch.zeros_like(self.loc)
-
-    def __init__(self, loc, validate_args=None):
-        self.loc = loc
+    def __init__(self,
+        in_dim,
+        out_dim,
+        log_std_min=-20,
+        log_std_max=2,
+        log_std_init=2.0,
+        full_std=True,
+        use_expln=False,
+        epsilon: float = 1e-6,
+        validate_args=None):
         if isinstance(loc, Number):
             batch_shape = torch.Size()
         else:
             batch_shape = self.loc.size()
         super(StateDependentNoiseDistribution, self).__init__(batch_shape, validate_args=validate_args)
 
-    def get_std(self, log_std):
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.log_std_min = log_std_min
+        self.log_std_max = log_std_max
+        self.full_std = full_std
+        self.use_expln = use_expln
+        self.epsilon = epsilon
+
+        # Layers
+        self._mu = nn.Linear(in_dim, out_dim)
+        # Reduce the number of parameters if needed
+        self._log_std = torch.ones(in_dim, out_dim) if self.full_std else torch.ones(in_dim, 1)
+        # Transform it to a parameter so it can be optimized
+        self._log_std = nn.Parameter(self._log_std * log_std_init, requires_grad=True)
+        self.reset_noise(self._log_std)
+
+    def reset_noise(self, log_std: th.Tensor, batch_size: int = 1) -> None:
+        """
+        Sample weights for the noise exploration matrix,
+        using a centered Gaussian distribution.
+        :param log_std:
+        :param batch_size:
+        """
+        std = self._std(log_std)
+        self.weights_dist = torch.distributions.Normal(torch.zeros_like(std), std)
+        # Reparametrization trick to pass gradients
+        self.exploration_mat = self.weights_dist.rsample()
+        # Pre-compute matrices in case of parallel exploration
+        self.exploration_matrices = self.weights_dist.rsample((batch_size,))
+
+    def _std(self, log_std):
         """
         Get the standard deviation from the learned parameter
         (log of it by default). This ensures that the std is positive.
         :param log_std:
         :return:
         """
-        # TODO: Register use_expln to self.
         if self.use_expln:
             # From gSDE paper, it allows to keep variance
             # above zero and prevent it from growing too fast
@@ -81,72 +103,58 @@ class StateDependentNoiseDistribution(Distribution):
         if self.full_std:
             return std
         # Reduce the number of parameters:
-        return torch.ones(self.latent_sde_dim, self.action_dim).to(log_std.device) * std
-
-    def expand(self, batch_shape, _instance=None):
-        new = self._get_checked_instance(StateDependentNoiseDistribution, _instance)
-        batch_shape = torch.Size(batch_shape)
-        new.loc = self.loc.expand(batch_shape)
-        super(StateDependentNoiseDistribution, new).__init__(batch_shape, validate_args=False)
-        new._validate_args = self._validate_args
-        return new
+        return torch.ones(self.in_dim, self.action_dim).to(log_std.device) * std
 
     def sample(self, sample_shape=torch.Size()):
-        # TODO: This needs to be called after rsample ()
-        noise = self.get_noise(self._latent_sde)
-        actions = self.distribution.mean + noise
-        return actions
-
-    def reset_noise(self, log_std: th.Tensor, batch_size: int = 1) -> None:
-        """
-        Sample weights for the noise exploration matrix,
-        using a centered Gaussian distribution.
-        :param log_std:
-        :param batch_size:
-        """
-        std = self.get_std(log_std)
-        self.weights_dist = torch.distributions.Normal(torch.zeros_like(std), std)
-        # Reparametrization trick to pass gradients
-        self.exploration_mat = self.weights_dist.rsample()
-        # Pre-compute matrices in case of parallel exploration
-        self.exploration_matrices = self.weights_dist.rsample((batch_size,))
-
-    def get_noise(self, latent_sde):
-        # TODO: Register exploration_matrices and exploration_mat to self.
-
-        # Default case: only one exploration matrix
-        if len(latent_sde) == 1 or len(latent_sde) != len(self.exploration_matrices):
-            return torch.mm(latent_sde, self.exploration_mat)
-        # Use batch matrix multiplication for efficient computation
-        # (batch_size, n_features) -> (batch_size, 1, n_features)
-        latent_sde = latent_sde.unsqueeze(1)
-        # (batch_size, 1, n_actions)
-        noise = torch.bmm(latent_sde, self.exploration_matrices)
-        return noise.squeeze(1)
+        with torch.no_grad():
+            return self.rsample(sample_shape)
 
     def rsample(self, sample_shape=torch.Size()):
-        # Get these arguments someehow
-        # 1. mean_actions
-        # 2. log_std
-        # 3. latent_sde
-
-        # First, recompute a probability distribution
-        variance = torch.mm(self.latent_sde ** 2, self.get_std(log_std) ** 2)
-        self.distribution = torch.distributions.Normal(mean_actions, torch.sqrt(variance + self.epsilon))
-
         if self.deterministic:
             return self.mode()
+        return self._sample()
 
-        shape = self._extended_shape(sample_shape)
-        return self.loc.expand(shape)
+    def mode(self):
+        return self._distribution.mean
+
+    def _sample(self):
+        noise = self._get_noise(self.x)
+        actions = self._distribution.mean + noise
+        return actions
+
+    def _get_noise(self, x):
+        # Default case: only one exploration matrix
+        if len(x) == 1 or len(x) != len(self.exploration_matrices):
+            return torch.mm(x, self.exploration_mat)
+        # Use batch matrix multiplication for efficient computation
+        # (batch_size, n_features) -> (batch_size, 1, n_features)
+        x = x.unsqueeze(1)
+        # (batch_size, 1, n_actions)
+        noise = torch.bmm(x, self.exploration_matrices)
+        return noise.squeeze(1)
 
     def log_prob(self, actions):
         # log likelihood for a gaussian
-        log_prob = self.distribution.log_prob(actions)
+        log_prob = self._distribution.log_prob(actions)
         # Sum along action dim
         log_prob = sum_independent_dims(log_prob)
 
         return log_prob
 
-    def entropy(self):
-        raise RuntimeError("Not defined")
+    def update_distribution_parameter(self, x):
+        """
+        Return Distribution
+        """
+        # Store current feature
+        self.x = x
+
+        # Forward through mean and std layers
+        mean_actions = self._mu(x)
+        log_std = self._log_std(x)
+        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
+
+        # Compute a new normal distribution with updated variance with noise
+        variance = torch.mm(x ** 2, self._std(log_std) ** 2)
+        self._distribution = torch.distributions.Normal(mean_actions, torch.sqrt(variance + self.epsilon))
+
+        return self

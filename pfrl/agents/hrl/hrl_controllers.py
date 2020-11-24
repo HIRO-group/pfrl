@@ -10,6 +10,7 @@ from pfrl.replay_buffer import high_level_batch_experiences_with_goal
 from pfrl.agents import HIROHighLevelGoalConditionedTD3, GoalConditionedTD3
 from pfrl.nn import ConstantsMult
 from pfrl.nn.lmbda import Lambda
+from pfrl.distributions import StateDependentNoiseDistribution
 
 
 class HRLControllerBase():
@@ -73,8 +74,7 @@ class HRLControllerBase():
                 nn.ReLU(),
                 nn.Linear(256, 256),
                 nn.ReLU(),
-                nn.Linear(256, action_dim * 2),
-                Lambda(squashed_diagonal_gaussian_head),
+                StateDependentNoiseDistribution(in_dim=256, out_dim=action_dim)
                 )
 
             torch.nn.init.xavier_uniform_(policy[0].weight)
