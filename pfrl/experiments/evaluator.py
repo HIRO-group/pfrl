@@ -496,7 +496,8 @@ class Evaluator(object):
         save_best_so_far_agent=True,
         logger=None,
         use_tensorboard=False,
-        record=False
+        record=False,
+        record_freq=500000
     ):
         assert (n_steps is None) != (n_episodes is None), (
             "One of n_steps or n_episodes must be None. "
@@ -519,6 +520,7 @@ class Evaluator(object):
         self.logger = logger or logging.getLogger(__name__)
 
         self.record = record
+        self.record_freq = record_freq
         # Write a header line first
         with open(os.path.join(self.outdir, "scores.txt"), "w") as f:
             custom_columns = tuple(t[0] for t in self.agent.get_statistics())
@@ -529,6 +531,8 @@ class Evaluator(object):
             self.tb_writer = create_tb_writer(outdir)
 
     def evaluate_and_update_max_score(self, t, episodes):
+        record = t % self.record_freq == 0
+
         eval_stats = eval_performance(
             self.env,
             self.agent,
@@ -536,7 +540,7 @@ class Evaluator(object):
             self.n_episodes,
             max_episode_len=self.max_episode_len,
             logger=self.logger,
-            step_number=t if self.record else None,
+            step_number=t if (self.record and record) else None,
             video_outdir=self.outdir
         )
         elapsed = time.time() - self.start_time
