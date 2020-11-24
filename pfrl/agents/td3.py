@@ -149,6 +149,15 @@ class TD3(AttributeSavingMixin, BatchAgent):
         self.last_action = None
 
         # Target model
+        print(self.policy)
+        print(self.policy[-1])
+        print(self.policy[-1].distribution.mu)
+        print(self.policy[-1].distribution.log_std)
+        u = copy.deepcopy(self.policy[-1].distribution.mu)
+        w = copy.deepcopy(self.policy[-1].distribution.log_std)
+        a = copy.deepcopy(self.policy[-1])
+        b = copy.deepcopy(self.policy[-2])
+        c = copy.deepcopy(self.policy[-3])
         self.target_policy = copy.deepcopy(self.policy).eval().requires_grad_(False)
         self.target_q_func1 = copy.deepcopy(self.q_func1).eval().requires_grad_(False)
         self.target_q_func2 = copy.deepcopy(self.q_func2).eval().requires_grad_(False)

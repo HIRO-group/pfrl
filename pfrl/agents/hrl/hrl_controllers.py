@@ -10,7 +10,7 @@ from pfrl.replay_buffer import high_level_batch_experiences_with_goal
 from pfrl.agents import HIROHighLevelGoalConditionedTD3, GoalConditionedTD3
 from pfrl.nn import ConstantsMult
 from pfrl.nn.lmbda import Lambda
-from pfrl.distributions import StateDependentNoiseDistribution
+from pfrl.policies import gSDEHead
 
 
 class HRLControllerBase():
@@ -52,34 +52,18 @@ class HRLControllerBase():
 
         # create agent
         if self.add_entropy:
-            def squashed_diagonal_gaussian_head(x):
-                """
-                taken from the SAC code.
-                """
-                assert x.shape[-1] == action_dim * 2
-                mean, log_scale = torch.chunk(x, 2, dim=1)
-                log_scale = torch.clamp(log_scale, -20.0, 2.0)
-                var = torch.exp(log_scale * 2)
-                base_distribution = distributions.Independent(
-                    distributions.Normal(loc=mean, scale=torch.sqrt(var)), 1
-                )
-                # cache_size=1 is required for numerical stability
-                return distributions.transformed_distribution.TransformedDistribution(
-                    base_distribution, [distributions.transforms.TanhTransform(cache_size=1)]
-                )
-
             # SAC policy definition:
             policy = nn.Sequential(
                 nn.Linear(state_dim + goal_dim, 256),
                 nn.ReLU(),
                 nn.Linear(256, 256),
                 nn.ReLU(),
-                StateDependentNoiseDistribution(in_dim=256, out_dim=action_dim)
+                gSDEHead(in_dim=256, out_dim=action_dim).requires_grad_(True)
                 )
 
             torch.nn.init.xavier_uniform_(policy[0].weight)
             torch.nn.init.xavier_uniform_(policy[2].weight)
-            torch.nn.init.xavier_uniform_(policy[4].weight)
+            # torch.nn.init.xavier_uniform_(policy[4].weight)
 
         else:
             policy = nn.Sequential(
@@ -150,7 +134,8 @@ class HRLControllerBase():
                 add_entropy=self.add_entropy,
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
-                target_policy_smoothing_func=default_target_policy_smoothing_func
+                target_policy_smoothing_func=default_target_policy_smoothing_func,
+                use_sde=self.add_entropy
                 )
         else:
             self.agent = HIROHighLevelGoalConditionedTD3(
@@ -173,7 +158,8 @@ class HRLControllerBase():
                 add_entropy=self.add_entropy,
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
-                target_policy_smoothing_func=default_target_policy_smoothing_func
+                target_policy_smoothing_func=default_target_policy_smoothing_func,
+                use_sde=self.add_entropy
                 )
 
         self.device = self.agent.device

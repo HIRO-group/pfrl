@@ -120,13 +120,15 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         recent_variance_size=100,
         target_policy_smoothing_func=default_target_policy_smoothing_func,
         add_entropy=False,
-        scale=1
+        scale=1,
+        use_sde=False
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
         self.recent_variance_size = recent_variance_size
         self.add_entropy = add_entropy
         self.scale = scale
+        self.use_sde = use_sde
 
         if add_entropy:
             self.temperature = 1.0
@@ -282,6 +284,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
     def update(self, experiences, errors_out=None):
         """Update the model from experiences"""
         batch = batch_experiences_with_goal(experiences, self.device, self.phi, self.gamma)
+        if self.use_sde:
+            self.policy[-1].reset_noise()
+
         self.update_q_func_with_goal(batch)
         if self.q_func_n_updates % self.policy_update_delay == 0:
             self.update_policy_with_goal(batch)
