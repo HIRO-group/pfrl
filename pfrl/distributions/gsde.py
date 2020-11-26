@@ -28,59 +28,37 @@ class StateDependentNoiseDistribution(Distribution):
         loc (float or Tensor): location of the distribution.
     """
 
-    arg_constraints = {"distribution": constraints.real}
+    arg_constraints = {}
     # mypy complains about the type of `support` since it is initialized
     # as None in `torch.distributions.Distribution` as of torch==1.5.0.
-    support = constraints.real  # type: ignore
     has_rsample = True
 
     def __init__(self,
         x,
-        in_dim,
-        out_dim,
-        full_std=True,
-        use_expln=False,
-        epsilon: float = 1e-6,
+        mean_actions: torch.Tensor,
+        std: torch.Tensor,
+        in_dim: int,
+        out_dim: int,
+        epsilon: float,
+        exploration_mat: torch.Tensor,
+        exploration_matrices: torch.Tensor,
+        deterministic=False,
         validate_args=None):
         batch_shape = torch.Size()
         super(StateDependentNoiseDistribution, self).__init__(batch_shape, validate_args=validate_args)
 
         # Store current feature
         self.x = x
-
+        self.mean_actions = mean_actions
         self.in_dim = in_dim
         self.out_dim = out_dim
-        self.full_std = full_std
-        self.use_expln = use_expln
-        self.epsilon = epsilon
+        self.exploration_mat = exploration_mat
+        self.exploration_matrices = exploration_matrices
+        self.deterministic = deterministic
 
         # Compute a new normal distribution with updated variance with noise
-        variance = torch.mm(x ** 2, self._std(log_std) ** 2)
-        self._distribution = torch.distributions.Normal(mean_actions, torch.sqrt(variance + self.epsilon))
-
-    def _std(self, log_std: torch.Tensor) -> torch.Tensor:
-        """
-        Get the standard deviation from the learned parameter
-        (log of it by default). This ensures that the std is positive.
-        :param log_std:
-        :return:
-        """
-        if self.use_expln:
-            # From gSDE paper, it allows to keep variance
-            # above zero and prevent it from growing too fast
-            below_threshold = torch.exp(log_std) * (log_std <= 0)
-            # Avoid NaN: zeros values that are below zero
-            safe_log_std = log_std * (log_std > 0) + self.epsilon
-            above_threshold = (torch.log1p(safe_log_std) + 1.0) * (log_std > 0)
-            std = below_threshold + above_threshold
-        else:
-            # Use normal exponential
-            std = torch.exp(log_std)
-
-        if self.full_std:
-            return std
-        # Reduce the number of parameters:
-        return torch.ones(self.in_dim, self.out_dim).to(log_std.device) * std
+        variance = torch.mm(x ** 2, std ** 2)
+        self._distribution = torch.distributions.Normal(mean_actions, torch.sqrt(variance + epsilon))
 
     def sample(self, sample_shape=torch.Size()):
         with torch.no_grad():

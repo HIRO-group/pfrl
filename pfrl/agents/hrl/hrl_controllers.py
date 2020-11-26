@@ -82,7 +82,7 @@ class HRLControllerBase():
                 nn.ReLU(),
                 nn.Linear(256, 256),
                 nn.ReLU(),
-                gSDEHead(in_dim=256, out_dim=action_dim).requires_grad_(True)
+                gSDEHead(in_dim=256, out_dim=action_dim)
                 )
 
             torch.nn.init.xavier_uniform_(policy[0].weight)
