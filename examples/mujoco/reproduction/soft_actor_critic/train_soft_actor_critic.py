@@ -105,6 +105,9 @@ def main():
         default=1.0,
         help="Weight initialization scale of policy output.",
     )
+    parser.add_argument(
+        "--use_sde", action="store_true", help="Use gsde with soft actor critic"
+    )
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -174,19 +177,30 @@ def main():
             base_distribution, [distributions.transforms.TanhTransform(cache_size=1)]
         )
 
-    policy = nn.Sequential(
-        nn.Linear(obs_size, 256),
-        nn.ReLU(),
-        nn.Linear(256, 256),
-        nn.ReLU(),
-        nn.Linear(256, action_size),
-        # nn.Linear(256, action_size * 2),
-        # Lambda(squashed_diagonal_gaussian_head),
-        gSDEHead(in_dim=256, out_dim=action_size)
-    )
-    torch.nn.init.xavier_uniform_(policy[0].weight)
-    torch.nn.init.xavier_uniform_(policy[2].weight)
-    torch.nn.init.xavier_uniform_(policy[4].weight, gain=args.policy_output_scale)
+    if args.use_sde:
+        policy = nn.Sequential(
+            nn.Linear(obs_size, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, action_size),
+            gSDEHead(in_dim=256, out_dim=action_size)
+        )
+        torch.nn.init.xavier_uniform_(policy[0].weight)
+        torch.nn.init.xavier_uniform_(policy[2].weight)
+    else:
+        policy = nn.Sequential(
+            nn.Linear(obs_size, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),
+            nn.ReLU(),
+            nn.Linear(256, action_size * 2),
+            Lambda(squashed_diagonal_gaussian_head),
+        )
+        torch.nn.init.xavier_uniform_(policy[0].weight)
+        torch.nn.init.xavier_uniform_(policy[2].weight)
+        torch.nn.init.xavier_uniform_(policy[4].weight, gain=args.policy_output_scale)
+
     policy_optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
 
     def make_q_func_with_optimizer():
@@ -229,6 +243,7 @@ def main():
         burnin_action_func=burnin_action_func,
         entropy_target=-action_size,
         temperature_optimizer_lr=3e-4,
+        use_sde=args.use_sde
     )
 
     if len(args.load) > 0 or args.load_pretrained:
