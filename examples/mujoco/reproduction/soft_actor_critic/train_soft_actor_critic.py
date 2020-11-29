@@ -21,6 +21,7 @@ from pfrl import experiments
 from pfrl.nn.lmbda import Lambda
 from pfrl import utils
 from pfrl import replay_buffers
+from pfrl.policies import gSDEHead
 
 
 def main():
@@ -178,8 +179,10 @@ def main():
         nn.ReLU(),
         nn.Linear(256, 256),
         nn.ReLU(),
-        nn.Linear(256, action_size * 2),
-        Lambda(squashed_diagonal_gaussian_head),
+        nn.Linear(256, action_size),
+        # nn.Linear(256, action_size * 2),
+        # Lambda(squashed_diagonal_gaussian_head),
+        gSDEHead(in_dim=256, out_dim=action_size)
     )
     torch.nn.init.xavier_uniform_(policy[0].weight)
     torch.nn.init.xavier_uniform_(policy[2].weight)
