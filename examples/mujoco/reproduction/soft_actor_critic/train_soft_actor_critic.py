@@ -183,7 +183,7 @@ def main():
             nn.ReLU(),
             nn.Linear(256, 256),
             nn.ReLU(),
-            nn.Linear(256, action_size),
+            nn.Linear(256, 256),
             gSDEHead(in_dim=256, out_dim=action_size)
         )
         torch.nn.init.xavier_uniform_(policy[0].weight)
