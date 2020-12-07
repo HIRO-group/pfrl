@@ -151,7 +151,9 @@ class HRLControllerBase():
                 add_entropy=self.add_entropy,
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
-                target_policy_smoothing_func=default_target_policy_smoothing_func
+                target_policy_smoothing_func=default_target_policy_smoothing_func,
+                entropy_target=-action_dim,
+                temperature_optimizer_lr=3e-4
                 )
         else:
             self.agent = HIROHighLevelGoalConditionedTD3(
@@ -174,7 +176,9 @@ class HRLControllerBase():
                 add_entropy=self.add_entropy,
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
-                target_policy_smoothing_func=default_target_policy_smoothing_func
+                target_policy_smoothing_func=default_target_policy_smoothing_func,
+                entropy_target=-action_dim,
+                temperature_optimizer_lr=3e-4
                 )
 
         self.device = self.agent.device

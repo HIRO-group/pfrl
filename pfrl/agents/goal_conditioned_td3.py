@@ -10,6 +10,7 @@ import pfrl
 from pfrl.agent import GoalConditionedBatchAgent
 from pfrl.agents import TD3
 from pfrl.utils.batch_states import batch_states
+from pfrl.utils.mode_of_distribution import mode_of_distribution
 from pfrl.replay_buffer import batch_experiences_with_goal
 from pfrl.utils import clip_l2_grad_norm_, _mean_or_nan
 
@@ -120,7 +121,10 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         recent_variance_size=100,
         target_policy_smoothing_func=default_target_policy_smoothing_func,
         add_entropy=False,
-        scale=1
+        scale=1,
+        entropy_target=None,
+        temperature_optimizer_lr=3e-4,
+        act_deterministically = True
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
@@ -128,8 +132,29 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.add_entropy = add_entropy
         self.scale = scale
 
-        if add_entropy:
-            self.temperature = 1.0
+        self.entropy_target = entropy_target
+        self.initial_temperature = 1.0
+
+        # code for learning an entropy term
+        if self.entropy_target is not None:
+            self.temperature_holder = TemperatureHolder(
+                initial_log_temperature=np.log(self.initial_temperature)
+            )
+            if temperature_optimizer_lr is not None:
+                self.temperature_optimizer = torch.optim.Adam(
+                    self.temperature_holder.parameters(), lr=temperature_optimizer_lr
+                )
+            else:
+                self.temperature_optimizer = torch.optim.Adam(
+                    self.temperature_holder.parameters()
+                )
+            if gpu is not None and gpu >= 0:
+                self.temperature_holder.to(self.device)
+        else:
+            self.temperature_holder = None
+            self.temperature_optimizer = None
+
+        self.act_deterministically = False if self.entropy_target is None else act_deterministically
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
         self.q_func2_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
@@ -159,6 +184,14 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
                                                  burnin_action_func=burnin_action_func,
                                                  policy_update_delay=policy_update_delay,
                                                  target_policy_smoothing_func=target_policy_smoothing_func)
+
+    @property
+    def temperature(self):
+        if self.entropy_target is None:
+            return self.initial_temperature
+        else:
+            with torch.no_grad():
+                return float(self.temperature_holder())
 
     def update_q_func_with_goal(self, batch):
         """
@@ -242,6 +275,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         if self.add_entropy:
             log_prob = action_distrib.log_prob(onpolicy_actions_normalized)
             entropy_term = self.temperature * log_prob[..., None]
+
         q = self.q_func1((torch.cat([batch_state, batch_goal], -1), onpolicy_actions))
 
         # Since we want to maximize Q, loss is negation of Q
@@ -265,6 +299,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.policy_optimizer.step()
         self.policy_n_updates += 1
 
+        if self.add_entropy and self.entropy_target is not None:
+            self.update_temperature(log_prob.detach())
+
     def sample_if_possible(self):
         sample = self.replay_updater.can_update_then_sample(self.t)
         return sample if not sample else sample[0]
@@ -287,10 +324,23 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             self.update_policy_with_goal(batch)
             self.sync_target_network()
 
-    def batch_select_onpolicy_action(self, batch_obs):
+    def update_temperature(self, log_prob):
+        assert not log_prob.requires_grad
+        loss = -torch.mean(self.temperature_holder() * (log_prob + self.entropy_target))
+        self.temperature_optimizer.zero_grad()
+        loss.backward()
+        if self.max_grad_norm is not None:
+            clip_l2_grad_norm_(self.temperature_holder.parameters(), self.max_grad_norm)
+        self.temperature_optimizer.step()
+
+    def batch_select_onpolicy_action(self, batch_obs, deterministic=False):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
-            batch_action = self.policy(batch_xs).sample()
+            policy_out = self.policy(batch_xs)
+            if deterministic:
+                batch_action = mode_of_distribution(policy_out)
+            else:
+                batch_action = policy_out.sample()
             batch_action = self.scale * batch_action
             batch_action = batch_action.cpu().numpy()
 
@@ -314,7 +364,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         concat_states = []
         for idx, ob in enumerate(batch_obs):
             concat_states.append(torch.cat([ob, batch_goal[idx]], dim=-1))
-        return self.batch_select_onpolicy_action(concat_states)
+        return self.batch_select_onpolicy_action(concat_states, self.act_deterministically)
 
     def _batch_act_train_goal(self, batch_obs, batch_goal):
         assert self.training
