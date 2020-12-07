@@ -259,6 +259,7 @@ class HIROAgent(HRLAgent):
 
             ("high_con_average_q1", _mean_or_nan(self.high_con.agent.q1_record)),
             ("high_con_average_q2", _mean_or_nan(self.high_con.agent.q2_record)),
+            ("high_con_temperature", _mean_or_nan(self.high_con.agent.temperature)),
             ("high_con_average_q_func1_loss", _mean_or_nan(self.high_con.agent.q_func1_loss_record)),
             ("high_con_average_q_func2_loss", _mean_or_nan(self.high_con.agent.q_func2_loss_record)),
             ("high_con_average_policy_loss", _mean_or_nan(self.high_con.agent.policy_loss_record)),

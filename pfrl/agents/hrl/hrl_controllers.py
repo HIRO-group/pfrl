@@ -152,7 +152,7 @@ class HRLControllerBase():
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
                 target_policy_smoothing_func=default_target_policy_smoothing_func,
-                entropy_target=-action_dim,
+                entropy_target=None,
                 temperature_optimizer_lr=3e-4
                 )
         else:

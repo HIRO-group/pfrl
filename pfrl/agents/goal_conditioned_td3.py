@@ -149,7 +149,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
                     self.temperature_holder.parameters()
                 )
             if gpu is not None and gpu >= 0:
-                self.temperature_holder.to(self.device)
+                self.temperature_holder.to(torch.device("cuda:{}".format(gpu)))
         else:
             self.temperature_holder = None
             self.temperature_optimizer = None
