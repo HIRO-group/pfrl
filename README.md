@@ -25,6 +25,11 @@ It can also be installed from the source code:
 ```
 python setup.py install
 ```
+or 
+
+```
+pip install .
+```
 
 Refer to [Installation](http://pfrl.readthedocs.io/en/latest/install.html) for more information on installation. 
 
