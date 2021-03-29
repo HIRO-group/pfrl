@@ -82,6 +82,9 @@ def train_hrl_agent(
                 if t == steps:
                     break
                 # Start a new episode, reset the environment and goal
+                agent.last_x = obs[0]
+                agent.last_y = obs[1]
+                agent.last_z = obs[2]
                 env.evaluate = False
                 episode_r = 0
                 episode_idx += 1

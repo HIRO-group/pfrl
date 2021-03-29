@@ -77,6 +77,9 @@ class HIROAgent(HRLAgent):
         self.sr = 0
         self.state_arr = []
         self.action_arr = []
+        self.last_x = float('NaN')
+        self.last_y = float('NaN')
+        self.last_z = float('NaN')
         self.cumulative_reward = 0
         self.last_high_level_obs = None
         self.last_high_level_goal = None
@@ -268,4 +271,7 @@ class HIROAgent(HRLAgent):
             ("high_con_policy_gradients_mean", _mean_or_nan(self.high_con.agent.policy_gradients_mean_record)),
             ("high_con_policy_n_updates", self.high_con.agent.policy_n_updates),
             ("high_con_q_func_n_updates", self.high_con.agent.q_func_n_updates),
+            ("final_x", self.last_x),
+            ('final_y', self.last_y),
+            ('final_z', self.last_z)
         ]
