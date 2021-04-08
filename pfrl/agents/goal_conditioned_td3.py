@@ -137,6 +137,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.policy_gradients_variance_record = collections.deque(maxlen=policy_grad_variance_record_size)
         self.policy_gradients_mean_record = collections.deque(maxlen=policy_grad_variance_record_size)
 
+        self.kl_divergence = 0.0
+
         super(GoalConditionedTD3, self).__init__(policy=policy,
                                                  q_func1=q_func1,
                                                  q_func2=q_func2,
@@ -264,6 +266,12 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             clip_l2_grad_norm_(self.policy.parameters(), self.max_grad_norm)
         self.policy_optimizer.step()
         self.policy_n_updates += 1
+
+        action_distrib = self.policy(torch.cat([batch_state, batch_goal], -1))
+        target_action_distrib = self.target_policy(torch.cat([batch_state, batch_goal], -1))
+
+        self.kl_divergence = float(torch.distributions.kl.kl_divergence(
+            action_distrib, target_action_distrib))
 
     def sample_if_possible(self):
         sample = self.replay_updater.can_update_then_sample(self.t)
