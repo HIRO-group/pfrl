@@ -64,12 +64,6 @@ def parse_rl_args():
         help="Final value of epsilon during training.",
     )
     parser.add_argument(
-        "--add-entropy",
-        type=bool,
-        default=False,
-        help="Whether or not to add entropy.",
-    )
-    parser.add_argument(
         "--steps",
         type=int,
         default=16 * 10 ** 6,
@@ -103,6 +97,12 @@ def parse_rl_args():
         action="store_true",
         default=False,
         help="Render env states in a GUI window.",
+    )
+    parser.add_argument(
+        "--add-entropy-layer",
+        type=str,
+        default='top',
+        help="Choose which layer to add entropy (top, bottom, both, or None)",
     )
     parser.add_argument("--num-envs", type=int, default=1, help="Number of envs run in parallel.")
     args = parser.parse_args()
@@ -189,7 +189,7 @@ def main():
                       reward_scaling=0.1,
                       goal_threshold=5,
                       gpu=gpu,
-                      add_entropy=args.add_entropy)
+                      add_entropy_layer=args.add_entropy_layer)
 
     if args.load:
         # load weights from a file if arg supplied

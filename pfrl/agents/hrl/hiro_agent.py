@@ -30,7 +30,7 @@ class HIROAgent(HRLAgent):
                  train_freq,
                  reward_scaling,
                  gpu,
-                 add_entropy,
+                 add_entropy_layer,
                  goal_threshold,
                  start_training_steps=2500):
         """
@@ -44,6 +44,20 @@ class HIROAgent(HRLAgent):
         low_level_replay_buffer = LowerControllerReplayBuffer(buffer_size)
         high_level_replay_buffer = HigherControllerReplayBuffer(buffer_size)
 
+        if add_entropy_layer == 'both':
+            high_entropy = True
+            low_entropy = True
+        elif add_entropy_layer == 'top':
+            high_entropy = True
+            low_entropy = False
+        elif add_entropy_layer == 'bottom':
+            high_entropy = False
+            low_entropy = True
+        else:
+            high_entropy = False
+            low_entropy = False
+
+
         # higher td3 controller
         self.high_con = HigherController(
             state_dim=state_dim,
@@ -53,7 +67,7 @@ class HIROAgent(HRLAgent):
             replay_buffer=high_level_replay_buffer,
             gpu=gpu,
             burnin_action_func=high_level_burnin_action_func,
-            add_entropy=add_entropy
+            add_entropy=high_entropy
         )
 
         # lower td3 controller
@@ -65,7 +79,7 @@ class HIROAgent(HRLAgent):
             replay_buffer=low_level_replay_buffer,
             gpu=gpu,
             burnin_action_func=low_level_burnin_action_func,
-            add_entropy=False
+            add_entropy=low_entropy
         )
 
         self.subgoal_freq = subgoal_freq
