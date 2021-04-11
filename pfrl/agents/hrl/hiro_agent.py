@@ -151,7 +151,7 @@ class HIROAgent(HRLAgent):
         followed_subgoal = np.array(obs[:3]) - np.array(self.last_obs[:3])
         self.ll_performance_dict['state_reached_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(np.array(last_subgoal[:3]),
                                                                     followed_subgoal)
-        # clip values
+        # see difference in subgoals
         if self.subgoal_position is None:
             self.subgoal_position = np.array(subgoal[:3])
         else:
