@@ -100,17 +100,41 @@ class HIROAgent(HRLAgent):
         self.last_high_level_action = None
         self.last_subgoal = None
 
+        self.subgoal_position = None
+        self.subgoal_position_difference = None
+
+        self.difference_goal_reached_ll_agent = {
+            'euclidean_distance': 0,
+            'rotational_distance': 0
+        }
+
     def act_high_level(self, obs, goal, last_subgoal, step=0, global_step=0):
         """
         high level actor
         """
+
         self.last_subgoal = last_subgoal
         if global_step < self.start_training_steps and self.training == True:
             subgoal = self.high_con.policy(self.last_obs, goal)
         else:
             subgoal = self._choose_subgoal(step, self.last_obs, last_subgoal, obs, goal)
+
+        # subgoal is more of a direction than absolute position
         self.sr = self._low_reward(self.last_obs, last_subgoal, obs)
+
+        desired = np.array(self.last_obs[:3]) + np.array(last_subgoal[:3])
+        actual = np.array(obs[:3])
+        # get difference between where we want to go and what was actually reached
+        # this tests the effectiveness of the LL agent
+
         # clip values
+        if self.subgoal_position is None:
+            self.subgoal_position = np.array(subgoal[:3])
+        else:
+            self.prev_subgoal_position = self.subgoal_position
+            self.subgoal_position = np.array(subgoal[:3])
+            # from the difference, compute magnitude and direction
+            
         return subgoal
 
     def act_low_level(self, obs, subgoal):
@@ -120,6 +144,7 @@ class HIROAgent(HRLAgent):
         """
         self.last_obs = obs
 
+        # action space is of low level, sent directly to env
         self.last_action = self.low_con.policy(obs, subgoal)
         return self.last_action
 
@@ -187,6 +212,7 @@ class HIROAgent(HRLAgent):
         rewards the low level controller for getting close to the
         subgoals assigned to it.
         """
+        # −||st + gt − st+1||2.
         abs_s = s[:sg.shape[0]] + sg
         return -np.sqrt(np.sum((abs_s - n_s[:sg.shape[0]])**2))
 
