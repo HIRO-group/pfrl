@@ -270,8 +270,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         action_distrib = self.policy(torch.cat([batch_state, batch_goal], -1))
         target_action_distrib = self.target_policy(torch.cat([batch_state, batch_goal], -1))
 
-        self.kl_divergence = float(torch.distributions.kl.kl_divergence(
-            action_distrib, target_action_distrib))
+        if self.add_entropy:
+            self.kl_divergence = float(torch.distributions.kl.kl_divergence(
+                action_distrib, target_action_distrib))
 
     def sample_if_possible(self):
         sample = self.replay_updater.can_update_then_sample(self.t)
