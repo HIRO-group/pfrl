@@ -14,6 +14,8 @@ from pfrl.agents.hrl.hrl_controllers import (
 )
 from pfrl.utils import _mean_or_nan
 
+import sklearn.metrics
+
 
 class HIROAgent(HRLAgent):
     def __init__(self,
@@ -100,12 +102,11 @@ class HIROAgent(HRLAgent):
         self.last_high_level_action = None
         self.last_subgoal = None
 
-        self.subgoal_position = None
-        self.subgoal_position_difference = None
-
-        self.difference_goal_reached_ll_agent = {
-            'euclidean_distance': 0,
-            'rotational_distance': 0
+        self.ll_performance_dict = {
+            'state_reached_diff': 0,
+            'state_reached_direction_diff': 0,
+            'subgoals_mag_diff': 0,
+            'subgoals_direction_diff': 0
         }
 
     def act_high_level(self, obs, goal, last_subgoal, step=0, global_step=0):
@@ -122,18 +123,7 @@ class HIROAgent(HRLAgent):
         # subgoal is more of a direction than absolute position
         self.sr = self._low_reward(self.last_obs, last_subgoal, obs)
 
-        desired = np.array(self.last_obs[:3]) + np.array(last_subgoal[:3])
-        actual = np.array(obs[:3])
-        # get difference between where we want to go and what was actually reached
-        # this tests the effectiveness of the LL agent
-
-        # clip values
-        if self.subgoal_position is None:
-            self.subgoal_position = np.array(subgoal[:3])
-        else:
-            self.prev_subgoal_position = self.subgoal_position
-            self.subgoal_position = np.array(subgoal[:3])
-            # from the difference, compute magnitude and direction
+        self.evaluate_current_ll_performance(obs, subgoal, last_subgoal)
 
         return subgoal
 
@@ -147,6 +137,32 @@ class HIROAgent(HRLAgent):
         # action space is of low level, sent directly to env
         self.last_action = self.low_con.policy(obs, subgoal)
         return self.last_action
+
+    def evaluate_current_ll_performance(self, obs, subgoal, last_subgoal):
+        desired = np.array(self.last_obs[:3]) + np.array(last_subgoal[:3])
+        actual = np.array(obs[:3])
+        # get difference between where we want to go and what was actually reached
+        # this tests the effectiveness of the LL agent
+
+        # difference in euclidean space
+        self.ll_performance_dict['state_reached_diff'] = np.linalg.norm(desired - actual)
+
+        # get directional diff
+        followed_subgoal = np.array(obs[:3]) - np.array(self.last_obs[:3])
+        self.ll_performance_dict['state_reached_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(np.array(last_subgoal[:3]),
+                                                                    followed_subgoal)
+        # clip values
+        if self.subgoal_position is None:
+            self.subgoal_position = np.array(subgoal[:3])
+        else:
+            self.prev_subgoal_position = self.subgoal_position
+            self.subgoal_position = np.array(subgoal[:3])
+            # from the difference, compute magnitude and direction
+            self.ll_performance_dict['subgoals_mag_diff'] = np.linalg.norm(self.subgoal_position - self.prev_subgoal_position)
+            self.ll_performance_dict['subgoals_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(self.subgoal_position,
+                                                                        self.prev_subgoal_position)
+
+
 
     def sample_subgoal(self, obs, goal):
         return self.high_con.policy(obs, goal)
