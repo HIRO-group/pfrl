@@ -140,21 +140,25 @@ class HIROAgent(HRLAgent):
         return self.last_action
 
     def evaluate_current_ll_performance(self, obs, subgoal, last_subgoal):
+        """
+        evaluate how the current low level agent
+        is doing with following subgoals.
+        """
         desired = np.array(self.last_obs[:3]) + np.array(last_subgoal[:3])
         actual = np.array(obs[:3])
         # get difference between where we want to go and what was actually reached
         # this tests the effectiveness of the LL agent
 
         # difference in euclidean space
-        self.ll_performance_dict['state_reached_diff'] = np.linalg.norm(desired - actual)
+        self.ll_performance_dict['state_reached_diff'] = np.linalg.norm(actual - desired)
 
         # get directional diff
         followed_subgoal = np.array(obs[:3]) - np.array(self.last_obs[:3])
 
         reshaped_last_subgoal = np.array(last_subgoal[:3]).reshape(1, -1)
         reshaped_followed_subgoal = followed_subgoal.reshape(1, -1)
-        self.ll_performance_dict['state_reached_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(reshaped_last_subgoal,
-                                                                    reshaped_followed_subgoal)[0][0]
+        self.ll_performance_dict['state_reached_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(reshaped_followed_subgoal,
+                                                                    reshaped_last_subgoal)[0][0]
 
         # see difference in subgoals
         if self.subgoal_position is None:
