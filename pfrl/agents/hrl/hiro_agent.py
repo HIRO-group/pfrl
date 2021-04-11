@@ -108,6 +108,7 @@ class HIROAgent(HRLAgent):
             'subgoals_mag_diff': 0,
             'subgoals_direction_diff': 0
         }
+        self.subgoal_position = None
 
     def act_high_level(self, obs, goal, last_subgoal, step=0, global_step=0):
         """
@@ -149,8 +150,12 @@ class HIROAgent(HRLAgent):
 
         # get directional diff
         followed_subgoal = np.array(obs[:3]) - np.array(self.last_obs[:3])
-        self.ll_performance_dict['state_reached_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(np.array(last_subgoal[:3]),
-                                                                    followed_subgoal)
+
+        reshaped_last_subgoal = np.array(last_subgoal[:3]).reshape(1, -1)
+        reshaped_followed_subgoal = followed_subgoal.reshape(1, -1)
+        self.ll_performance_dict['state_reached_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(reshaped_last_subgoal,
+                                                                    reshaped_followed_subgoal)[0][0]
+
         # see difference in subgoals
         if self.subgoal_position is None:
             self.subgoal_position = np.array(subgoal[:3])
@@ -159,8 +164,11 @@ class HIROAgent(HRLAgent):
             self.subgoal_position = np.array(subgoal[:3])
             # from the difference, compute magnitude and direction
             self.ll_performance_dict['subgoals_mag_diff'] = np.linalg.norm(self.subgoal_position - self.prev_subgoal_position)
-            self.ll_performance_dict['subgoals_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(self.subgoal_position,
-                                                                        self.prev_subgoal_position)
+
+            reshaped_subgoal_position = self.subgoal_position.reshape(1, -1)
+            reshaped_prev_subgoal_position = self.prev_subgoal_position.reshape(1, -1)
+            self.ll_performance_dict['subgoals_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(reshaped_subgoal_position,
+                                                                        reshaped_prev_subgoal_position)[0][0]
 
 
 
@@ -329,11 +337,11 @@ class HIROAgent(HRLAgent):
             ("high_con_q_func_n_updates", self.high_con.agent.q_func_n_updates),
             ("final_x", self.last_x),
             ('final_y', self.last_y),
-            ('final_z', self.last_z)
+            ('final_z', self.last_z),
             # metrics for evaluating ll agent performance
             ('state_reached_diff', self.ll_performance_dict['state_reached_diff']),
             ('state_reached_direction_diff', self.ll_performance_dict['state_reached_direction_diff']),
             ('subgoals_mag_diff', self.ll_performance_dict['subgoals_mag_diff']),
-            ('subgoals_direction_diff', self.ll_performance_dict['subgoals_direction_diff'])
+            ('subgoals_direction_diff', self.ll_performance_dict['subgoals_direction_diff']),
 
         ]
