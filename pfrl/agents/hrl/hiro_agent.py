@@ -169,12 +169,10 @@ class HIROAgent(HRLAgent):
             # from the difference, compute magnitude and direction
             self.ll_performance_dict['subgoals_mag_diff'] = np.linalg.norm(self.subgoal_position - self.prev_subgoal_position)
 
-            reshaped_subgoal_position = self.subgoal_position.reshape(1, -1)
             reshaped_prev_subgoal_position = self.prev_subgoal_position.reshape(1, -1)
+            reshaped_subgoal_position = self.subgoal_position.reshape(1, -1)
             self.ll_performance_dict['subgoals_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(reshaped_subgoal_position,
                                                                         reshaped_prev_subgoal_position)[0][0]
-
-
 
     def sample_subgoal(self, obs, goal):
         return self.high_con.policy(obs, goal)
@@ -342,6 +340,7 @@ class HIROAgent(HRLAgent):
             ("final_x", self.last_x),
             ('final_y', self.last_y),
             ('final_z', self.last_z),
+
             # metrics for evaluating ll agent performance
             ('state_reached_diff', self.ll_performance_dict['state_reached_diff']),
             ('state_reached_direction_diff', self.ll_performance_dict['state_reached_direction_diff']),
