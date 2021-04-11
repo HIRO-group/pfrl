@@ -134,7 +134,7 @@ class HIROAgent(HRLAgent):
             self.prev_subgoal_position = self.subgoal_position
             self.subgoal_position = np.array(subgoal[:3])
             # from the difference, compute magnitude and direction
-            
+
         return subgoal
 
     def act_low_level(self, obs, subgoal):
