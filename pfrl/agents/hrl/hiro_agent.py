@@ -330,4 +330,10 @@ class HIROAgent(HRLAgent):
             ("final_x", self.last_x),
             ('final_y', self.last_y),
             ('final_z', self.last_z)
+            # metrics for evaluating ll agent performance
+            ('state_reached_diff', self.ll_performance_dict['state_reached_diff']),
+            ('state_reached_direction_diff', self.ll_performance_dict['state_reached_direction_diff']),
+            ('subgoals_mag_diff', self.ll_performance_dict['subgoals_mag_diff']),
+            ('subgoals_direction_diff', self.ll_performance_dict['subgoals_direction_diff'])
+
         ]
