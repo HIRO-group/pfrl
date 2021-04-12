@@ -178,7 +178,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
 
         with torch.no_grad(), pfrl.utils.evaluating(
             self.target_policy
-        ), pfrl.utils.evaluating(self.target_q_func1), pfrl.utils.evaluating(
+        ), pfrl.utils.evaluating(self.policy), pfrl.utils.evaluating(self.target_q_func1), pfrl.utils.evaluating(
             self.target_q_func2
         ):
             if self.add_entropy:
