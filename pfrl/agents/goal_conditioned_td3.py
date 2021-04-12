@@ -294,7 +294,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
             batch_distribution = self.policy(batch_xs)
 
-            if deterministic:
+            if deterministic and self.add_entropy:
                 batch_action = mode_of_distribution(batch_distribution)
             else:
                 batch_action = batch_distribution.sample()
