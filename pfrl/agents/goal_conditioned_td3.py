@@ -181,11 +181,16 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         ), pfrl.utils.evaluating(self.target_q_func1), pfrl.utils.evaluating(
             self.target_q_func2
         ):
-            next_action_distrib = self.target_policy(torch.cat([batch_next_state, batch_next_goal], -1))
-            next_actions_normalized = next_action_distrib.sample()
-            next_actions = self.target_policy_smoothing_func(
-                self.scale * next_actions_normalized
-            )
+            if self.add_entropy:
+                next_action_distrib = self.policy(torch.cat([batch_next_state, batch_next_goal], -1))
+                next_actions_normalized = next_action_distrib.sample()
+                next_actions = self.scale * next_actions_normalized
+            else:
+                next_action_distrib = self.target_policy(torch.cat([batch_next_state, batch_next_goal], -1))
+                next_actions_normalized = next_action_distrib.sample()
+                next_actions = self.target_policy_smoothing_func(
+                    self.scale * next_actions_normalized
+                )
 
             entropy_term = 0
             if self.add_entropy:
