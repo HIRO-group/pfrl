@@ -81,6 +81,9 @@ class HRLControllerBase():
             torch.nn.init.xavier_uniform_(policy[0].weight)
             torch.nn.init.xavier_uniform_(policy[2].weight)
             torch.nn.init.xavier_uniform_(policy[4].weight)
+            explorer = explorers.AdditiveGaussian(
+                scale=0.0,
+            )
 
         else:
             policy = nn.Sequential(
@@ -93,6 +96,14 @@ class HRLControllerBase():
                 ConstantsMult(self.scale_tensor),
                 pfrl.policies.DeterministicHead(),
                 )
+            # TODO - have proper low and high values from action space.
+            # from the hiro paper, the scale is 1.0
+            explorer = explorers.AdditiveGaussian(
+                scale=self.expl_noise,
+                low=-self.scale,
+                high=self.scale
+            )
+
 
         policy_optimizer = torch.optim.Adam(policy.parameters(), lr=actor_lr)
 
@@ -111,13 +122,6 @@ class HRLControllerBase():
         q_func1, q_func1_optimizer = make_q_func_with_optimizer()
         q_func2, q_func2_optimizer = make_q_func_with_optimizer()
 
-        # TODO - have proper low and high values from action space.
-        # from the hiro paper, the scale is 1.0
-        explorer = explorers.AdditiveGaussian(
-            scale=self.expl_noise,
-            low=-self.scale,
-            high=self.scale
-        )
 
         def default_target_policy_smoothing_func(batch_action):
             """Add noises to actions for target policy smoothing."""
