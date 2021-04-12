@@ -13,6 +13,8 @@ from pfrl.utils.batch_states import batch_states
 from pfrl.replay_buffer import batch_experiences_with_goal
 from pfrl.utils import clip_l2_grad_norm_, _mean_or_nan
 
+from pfrl.utils.mode_of_distribution import mode_of_distribution
+
 
 def default_target_policy_smoothing_func(batch_action):
     """Add noises to actions for target policy smoothing."""
@@ -287,10 +289,16 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             self.update_policy_with_goal(batch)
             self.sync_target_network()
 
-    def batch_select_onpolicy_action(self, batch_obs):
+    def batch_select_onpolicy_action(self, batch_obs, deterministic=False):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
-            batch_action = self.policy(batch_xs).sample()
+            batch_distribution = self.policy(batch_xs)
+
+            if deterministic:
+                batch_action = mode_of_distribution(batch_distribution)
+            else:
+                batch_action = batch_distribution.sample()
+
             batch_action = self.scale * batch_action
             batch_action = batch_action.cpu().numpy()
 
@@ -314,7 +322,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         concat_states = []
         for idx, ob in enumerate(batch_obs):
             concat_states.append(torch.cat([ob, batch_goal[idx]], dim=-1))
-        return self.batch_select_onpolicy_action(concat_states)
+        return self.batch_select_onpolicy_action(concat_states, deterministic=True)
 
     def _batch_act_train_goal(self, batch_obs, batch_goal):
         assert self.training
