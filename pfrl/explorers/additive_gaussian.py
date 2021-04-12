@@ -1,5 +1,5 @@
 import numpy as np
-
+import torch
 from pfrl import explorer
 
 
@@ -22,6 +22,14 @@ class AdditiveGaussian(explorer.Explorer):
         self.scale = scale
         self.low = low
         self.high = high
+
+    def distribution(self, x):
+        base_distribution = torch.distributions.Independent(
+            torch.distributions.Normal(loc=x, scale=self.scale), 1
+        )
+        return torch.distributions.transformed_distribution.TransformedDistribution(
+            base_distribution, [torch.distributions.transforms.TanhTransform(cache_size=1)]
+        )
 
     def select_action(self, t, greedy_action_func, action_value=None):
         a = greedy_action_func()
