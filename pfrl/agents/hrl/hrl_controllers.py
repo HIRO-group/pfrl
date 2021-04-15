@@ -36,7 +36,13 @@ class HRLControllerBase():
             burnin_action_func=None,
             replay_start_size=2500):
         self.scale = scale
-        self.device = torch.device(f'cuda:{gpu}')
+
+        if gpu is not None and gpu >= 0:
+            assert torch.cuda.is_available()
+            self.device = torch.device("cuda:{}".format(gpu))
+        else:
+            self.device = torch.device("cpu")
+
         self.scale_tensor = torch.tensor(self.scale).float().to(self.device)
         # parameters
         self.expl_noise = expl_noise
