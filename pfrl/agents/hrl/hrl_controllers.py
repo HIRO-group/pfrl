@@ -93,7 +93,6 @@ class HRLControllerBase():
                 nn.ReLU(),
                 nn.Linear(300, action_dim),
                 nn.Tanh(),
-                ConstantsMult(self.scale_tensor),
                 pfrl.policies.DeterministicHead(),
                 )
             # TODO - have proper low and high values from action space.
