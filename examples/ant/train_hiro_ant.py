@@ -101,7 +101,7 @@ def parse_rl_args():
     parser.add_argument(
         "--add-entropy-layer",
         type=str,
-        default=None,
+        default='top',
         help="Choose which layer to add entropy (top, bottom, both, or None)",
     )
     parser.add_argument("--num-envs", type=int, default=1, help="Number of envs run in parallel.")
