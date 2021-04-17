@@ -5,3 +5,4 @@ pillow
 git+git://github.com/HIRO-group/hiro-robot-envs@master#egg=hiro-robot-envs
 mujoco-py<2.1,>=2.0
 tensorboard
+sklearn

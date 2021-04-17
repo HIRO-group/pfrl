@@ -14,6 +14,8 @@ from pfrl.agents.hrl.hrl_controllers import (
 )
 from pfrl.utils import _mean_or_nan
 
+import sklearn.metrics
+
 
 class HIROAgent(HRLAgent):
     def __init__(self,
@@ -100,17 +102,30 @@ class HIROAgent(HRLAgent):
         self.last_high_level_action = None
         self.last_subgoal = None
 
+        self.ll_performance_dict = {
+            'state_reached_diff': 0,
+            'state_reached_direction_diff': 0,
+            'subgoals_mag_diff': 0,
+            'subgoals_direction_diff': 0
+        }
+        self.subgoal_position = None
+
     def act_high_level(self, obs, goal, last_subgoal, step=0, global_step=0):
         """
         high level actor
         """
+
         self.last_subgoal = last_subgoal
         if global_step < self.start_training_steps and self.training == True:
             subgoal = self.high_con.policy(self.last_obs, goal)
         else:
             subgoal = self._choose_subgoal(step, self.last_obs, last_subgoal, obs, goal)
+
+        # subgoal is more of a direction than absolute position
         self.sr = self._low_reward(self.last_obs, last_subgoal, obs)
-        # clip values
+
+        self.evaluate_current_ll_performance(obs, subgoal, last_subgoal)
+
         return subgoal
 
     def act_low_level(self, obs, subgoal):
@@ -120,8 +135,44 @@ class HIROAgent(HRLAgent):
         """
         self.last_obs = obs
 
+        # action space is of low level, sent directly to env
         self.last_action = self.low_con.policy(obs, subgoal)
         return self.last_action
+
+    def evaluate_current_ll_performance(self, obs, subgoal, last_subgoal):
+        """
+        evaluate how the current low level agent
+        is doing with following subgoals.
+        """
+        desired = np.array(self.last_obs[:3]) + np.array(last_subgoal[:3])
+        actual = np.array(obs[:3])
+        # get difference between where we want to go and what was actually reached
+        # this tests the effectiveness of the LL agent
+
+        # difference in euclidean space
+        self.ll_performance_dict['state_reached_diff'] = np.linalg.norm(actual - desired)
+
+        # get directional diff
+        followed_subgoal = np.array(obs[:3]) - np.array(self.last_obs[:3])
+
+        reshaped_last_subgoal = np.array(last_subgoal[:3]).reshape(1, -1)
+        reshaped_followed_subgoal = followed_subgoal.reshape(1, -1)
+        self.ll_performance_dict['state_reached_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(reshaped_followed_subgoal,
+                                                                    reshaped_last_subgoal)[0][0]
+
+        # see difference in subgoals
+        if self.subgoal_position is None:
+            self.subgoal_position = np.array(subgoal[:3])
+        else:
+            self.prev_subgoal_position = self.subgoal_position
+            self.subgoal_position = np.array(subgoal[:3])
+            # from the difference, compute magnitude and direction
+            self.ll_performance_dict['subgoals_mag_diff'] = np.linalg.norm(self.subgoal_position - self.prev_subgoal_position)
+
+            reshaped_prev_subgoal_position = self.prev_subgoal_position.reshape(1, -1)
+            reshaped_subgoal_position = self.subgoal_position.reshape(1, -1)
+            self.ll_performance_dict['subgoals_direction_diff'] = sklearn.metrics.pairwise.cosine_similarity(reshaped_subgoal_position,
+                                                                        reshaped_prev_subgoal_position)[0][0]
 
     def sample_subgoal(self, obs, goal):
         return self.high_con.policy(obs, goal)
@@ -187,6 +238,7 @@ class HIROAgent(HRLAgent):
         rewards the low level controller for getting close to the
         subgoals assigned to it.
         """
+        # −||st + gt − st+1||2.
         abs_s = s[:sg.shape[0]] + sg
         return -np.sqrt(np.sum((abs_s - n_s[:sg.shape[0]])**2))
 
@@ -287,5 +339,12 @@ class HIROAgent(HRLAgent):
             ("high_con_q_func_n_updates", self.high_con.agent.q_func_n_updates),
             ("final_x", self.last_x),
             ('final_y', self.last_y),
-            ('final_z', self.last_z)
+            ('final_z', self.last_z),
+
+            # metrics for evaluating ll agent performance
+            ('state_reached_diff', self.ll_performance_dict['state_reached_diff']),
+            ('state_reached_direction_diff', self.ll_performance_dict['state_reached_direction_diff']),
+            ('subgoals_mag_diff', self.ll_performance_dict['subgoals_mag_diff']),
+            ('subgoals_direction_diff', self.ll_performance_dict['subgoals_direction_diff']),
+
         ]
