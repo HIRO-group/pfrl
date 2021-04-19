@@ -34,7 +34,8 @@ class HIROAgent(HRLAgent):
                  gpu,
                  add_entropy_layer,
                  goal_threshold,
-                 start_training_steps=2500):
+                 start_training_steps=2500,
+                 temperature=1.0):
         """
         Constructor for the HIRO agent.
         """
@@ -69,7 +70,8 @@ class HIROAgent(HRLAgent):
             replay_buffer=high_level_replay_buffer,
             gpu=gpu,
             burnin_action_func=high_level_burnin_action_func,
-            add_entropy=high_entropy
+            add_entropy=high_entropy,
+            temperature=temperature
         )
 
         # lower td3 controller
@@ -81,7 +83,8 @@ class HIROAgent(HRLAgent):
             replay_buffer=low_level_replay_buffer,
             gpu=gpu,
             burnin_action_func=low_level_burnin_action_func,
-            add_entropy=low_entropy
+            add_entropy=low_entropy,
+            temperature=temperature
         )
 
         self.subgoal_freq = subgoal_freq

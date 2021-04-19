@@ -122,7 +122,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         recent_variance_size=100,
         target_policy_smoothing_func=default_target_policy_smoothing_func,
         add_entropy=False,
-        scale=1
+        scale=1,
+        entropy_temperature=1.0
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
@@ -131,7 +132,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.scale = scale
 
         if add_entropy:
-            self.temperature = 1.0
+            self.temperature = entropy_temperature
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
         self.q_func2_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
