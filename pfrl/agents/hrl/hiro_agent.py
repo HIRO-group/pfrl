@@ -325,6 +325,8 @@ class HIROAgent(HRLAgent):
             ("low_con_policy_gradients_mean", _mean_or_nan(self.low_con.agent.policy_gradients_mean_record)),
             ("low_con_policy_n_updates", self.low_con.agent.policy_n_updates),
             ("low_con_q_func_n_updates", self.low_con.agent.q_func_n_updates),
+            ("low_con_policy_update_kldivergence", self.low_con.agent.kl_divergence),
+            ("low_con_policy_update_one_step_kldivergence", self.low_con.agent.one_step_kl_divergence),
 
             ("high_con_average_q1", _mean_or_nan(self.high_con.agent.q1_record)),
             ("high_con_average_q2", _mean_or_nan(self.high_con.agent.q2_record)),
@@ -337,6 +339,7 @@ class HIROAgent(HRLAgent):
             ("high_con_policy_gradients_mean", _mean_or_nan(self.high_con.agent.policy_gradients_mean_record)),
             ("high_con_policy_n_updates", self.high_con.agent.policy_n_updates),
             ("high_con_q_func_n_updates", self.high_con.agent.q_func_n_updates),
+            ("high_con_policy_update_kldivergence", self.high_con.agent.kl_divergence),
             ("final_x", self.last_x),
             ('final_y', self.last_y),
             ('final_z', self.last_z),

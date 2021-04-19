@@ -139,6 +139,10 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.policy_gradients_variance_record = collections.deque(maxlen=policy_grad_variance_record_size)
         self.policy_gradients_mean_record = collections.deque(maxlen=policy_grad_variance_record_size)
 
+        self.kl_divergence = 0.0
+        self.one_step_kl_divergence = 0.0
+        self.prior_policy = policy.clone()
+
         super(GoalConditionedTD3, self).__init__(policy=policy,
                                                  q_func1=q_func1,
                                                  q_func2=q_func2,
@@ -271,6 +275,36 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             clip_l2_grad_norm_(self.policy.parameters(), self.max_grad_norm)
         self.policy_optimizer.step()
         self.policy_n_updates += 1
+
+        self.kl_divergence = self.compute_kl(
+            self.policy, self.target_policy,
+            batch_state, batch_goal)
+
+        self.one_step_kl_divergence = self.compute_kl(
+            self.policy, self.prior_policy,
+            batch_state, batch_goal)
+
+        self.prior_policy = self.policy.clone()
+
+    def compute_kl(self, policy1, policy2,
+                   batch_state, batch_goal) -> float:
+        action_distrib = policy1(torch.cat([batch_state, batch_goal], -1))
+        target_action_distrib = policy2(torch.cat([batch_state, batch_goal], -1))
+
+        if self.add_entropy:
+            kl_divergence = torch.distributions.kl.kl_divergence(
+                action_distrib, target_action_distrib)
+            kl_divergence = float(kl_divergence)
+        else:
+            actions = action_distrib.sample()
+            target_actions = target_action_distrib.sample()
+
+            action_distrib = self.explorer.distribution(actions)
+            target_action_distrib = self.explorer.distribution(target_actions)
+
+            kl_divergence = torch.distributions.kl.kl_divergence(
+                action_distrib, target_action_distrib)
+        return kl_divergence
 
     def sample_if_possible(self):
         sample = self.replay_updater.can_update_then_sample(self.t)
