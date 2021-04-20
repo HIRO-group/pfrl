@@ -304,6 +304,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         if self.add_entropy:
             kl_divergence = torch.distributions.kl.kl_divergence(
                 action_distrib, target_action_distrib)
+            print(kl_divergence)
             kl_divergence = float(kl_divergence)
         else:
             actions = action_distrib.sample()
