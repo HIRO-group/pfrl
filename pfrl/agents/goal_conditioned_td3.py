@@ -145,7 +145,12 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.kl_divergence = 0.0
         self.one_step_kl_divergence = 0.0
         self.prior_policy = copy.deepcopy(policy)
-        # self.prior_policy = policy.clone()
+
+        # move prior policy to gpu
+        if gpu is not None and gpu >= 0:
+            assert torch.cuda.is_available()
+            device = torch.device("cuda:{}".format(gpu))
+            self.prior_policy.to(device)
 
         super(GoalConditionedTD3, self).__init__(policy=policy,
                                                  q_func1=q_func1,
