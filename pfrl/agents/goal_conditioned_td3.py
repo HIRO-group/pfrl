@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 from torch import nn
+import copy
 
 import pfrl
 from pfrl.agent import GoalConditionedBatchAgent
@@ -122,7 +123,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         recent_variance_size=100,
         target_policy_smoothing_func=default_target_policy_smoothing_func,
         add_entropy=False,
-        scale=1
+        scale=1,
+        entropy_temperature=1.0
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
@@ -131,7 +133,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.scale = scale
 
         if add_entropy:
-            self.temperature = 1.0
+            self.temperature = entropy_temperature
+            print('Temperature:', self.temperature)
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
         self.q_func2_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
@@ -141,7 +144,13 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
 
         self.kl_divergence = 0.0
         self.one_step_kl_divergence = 0.0
-        self.prior_policy = policy.clone()
+        self.prior_policy = copy.deepcopy(policy)
+
+        # move prior policy to gpu
+        if gpu is not None and gpu >= 0:
+            assert torch.cuda.is_available()
+            device = torch.device("cuda:{}".format(gpu))
+            self.prior_policy.to(device)
 
         super(GoalConditionedTD3, self).__init__(policy=policy,
                                                  q_func1=q_func1,
@@ -284,7 +293,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             self.policy, self.prior_policy,
             batch_state, batch_goal)
 
-        self.prior_policy = self.policy.clone()
+        self.prior_policy = copy.deepcopy(self.policy)
+        # self.prior_policy = self.policy.clone()
 
     def compute_kl(self, policy1, policy2,
                    batch_state, batch_goal) -> float:

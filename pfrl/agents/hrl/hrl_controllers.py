@@ -34,7 +34,8 @@ class HRLControllerBase():
             gpu,
             add_entropy,
             burnin_action_func=None,
-            replay_start_size=2500):
+            replay_start_size=2500,
+            temperature=1.0):
         self.scale = scale
 
         if gpu is not None and gpu >= 0:
@@ -160,7 +161,8 @@ class HRLControllerBase():
                 add_entropy=self.add_entropy,
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
-                target_policy_smoothing_func=default_target_policy_smoothing_func
+                target_policy_smoothing_func=default_target_policy_smoothing_func,
+                entropy_temperature=temperature
                 )
         else:
             self.agent = HIROHighLevelGoalConditionedTD3(
@@ -183,7 +185,8 @@ class HRLControllerBase():
                 add_entropy=self.add_entropy,
                 scale=input_scale,
                 burnin_action_func=burnin_action_func,
-                target_policy_smoothing_func=default_target_policy_smoothing_func
+                target_policy_smoothing_func=default_target_policy_smoothing_func,
+                entropy_temperature=temperature
                 )
 
         self.device = self.agent.device
@@ -242,7 +245,8 @@ class LowerController(HRLControllerBase):
             buffer_freq=10,
             minibatch_size=100,
             gpu=None,
-            burnin_action_func=None):
+            burnin_action_func=None,
+            temperature=1.0):
         super(LowerController, self).__init__(
                                             state_dim=state_dim,
                                             goal_dim=goal_dim,
@@ -262,7 +266,8 @@ class LowerController(HRLControllerBase):
                                             minibatch_size=minibatch_size,
                                             gpu=gpu,
                                             add_entropy=add_entropy,
-                                            burnin_action_func=burnin_action_func)
+                                            burnin_action_func=burnin_action_func,
+                                            temperature=temperature)
 
     def observe(self, n_s, g, r, done):
 
@@ -292,7 +297,8 @@ class HigherController(HRLControllerBase):
             buffer_freq=10,
             minibatch_size=100,
             gpu=None,
-            burnin_action_func=None):
+            burnin_action_func=None,
+            temperature=1.0):
         super(HigherController, self).__init__(
                                                 state_dim=state_dim,
                                                 goal_dim=goal_dim,
@@ -312,7 +318,8 @@ class HigherController(HRLControllerBase):
                                                 minibatch_size=minibatch_size,
                                                 gpu=gpu,
                                                 add_entropy=add_entropy,
-                                                burnin_action_func=burnin_action_func)
+                                                burnin_action_func=burnin_action_func,
+                                                temperature=temperature)
         self.action_dim = action_dim
 
     def _off_policy_corrections(self,
