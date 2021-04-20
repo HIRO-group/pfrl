@@ -3,7 +3,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 install_requires = [
-    'torch>=1.3.0',
+    'torch==1.6.0',
     'gym>=0.9.7',
     'numpy>=1.10.4',
     'pillow',
