@@ -137,7 +137,7 @@ class HRLControllerBase():
             smoothed_action = torch.max(smoothed_action, torch.tensor(-self.scale).to(self.device).float())
             return smoothed_action
 
-        input_scale = self.scale_tensor if self.add_entropy else 1
+        input_scale = self.scale_tensor
 
         if self.is_low_level:
             # standard goal conditioned td3
