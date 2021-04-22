@@ -105,9 +105,15 @@ def parse_rl_args():
         help="Choose which layer to add entropy (top, bottom, both, or None)",
     )
     parser.add_argument(
-        "--temperature",
+        "--temperature_high",
         type=float,
         default=1.0,
+        help="Choose which temperature to use for the entropy term",
+    )
+    parser.add_argument(
+        "--temperature_low",
+        type=float,
+        default=0.1,
         help="Choose which temperature to use for the entropy term",
     )
     parser.add_argument("--num-envs", type=int, default=1, help="Number of envs run in parallel.")
@@ -197,7 +203,8 @@ def main():
                       goal_threshold=5,
                       gpu=gpu,
                       add_entropy_layer=args.add_entropy_layer,
-                      temperature=args.temperature)
+                      temperature_high=args.temperature_high,
+                      temperature_low=args.temperature_low)
 
     if args.load:
         # load weights from a file if arg supplied
