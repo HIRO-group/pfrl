@@ -101,7 +101,7 @@ def parse_rl_args():
     parser.add_argument(
         "--add-entropy-layer",
         type=str,
-        default='top',
+        default='None',
         help="Choose which layer to add entropy (top, bottom, both, or None)",
     )
     parser.add_argument(
@@ -144,8 +144,10 @@ def main():
         # use different seeds for train vs test envs
         process_seed = int(process_seeds[idx])
 
-        # env_seed = 2 ** 32 - 1 - process_seed if test else process_seed
-        env_seed = np.random.randint(0, 2**32 - 1) if not test else process_seed
+        env_seed = 2 ** 32 - 1 - process_seed if test else process_seed
+        # env_seed = np.random.randint(0, 2**32 - 1) if not test else process_seed
+        print(env_seed)
+
         utils.set_random_seed(env_seed)
         # create the anv environment with goal
         env = AntEnvWithGoal(create_maze_env(args.env), args.env, env_subgoal_dim=15)
