@@ -34,6 +34,7 @@ class HIROAgent(HRLAgent):
                  gpu,
                  add_entropy_layer,
                  goal_threshold,
+                 soft_subgoal_update,
                  start_training_steps=2500,
                  temperature_high=1.0,
                  temperature_low=0.1):
@@ -94,6 +95,8 @@ class HIROAgent(HRLAgent):
         self.reward_scaling = reward_scaling
         self.start_training_steps = start_training_steps
         self.goal_threshold = goal_threshold
+        self.soft_subgoal_update = soft_subgoal_update
+        
         self.sr = 0
         self.state_arr = []
         self.action_arr = []
@@ -122,6 +125,11 @@ class HIROAgent(HRLAgent):
         self.last_subgoal = last_subgoal
         if global_step < self.start_training_steps and self.training == True:
             subgoal = self.high_con.policy(self.last_obs, goal)
+            # Soft Update / First Order System 
+            # value = alpha * new_value + (1 - alpha) * prev_value
+            # Just for Euclidean subgoals
+            subgoal[:3] = self.soft_subgoal_update * subgoal[:3] + \
+                (1-self.soft_subgoal_update) * self.last_subgoal[:3]
         else:
             subgoal = self._choose_subgoal(step, self.last_obs, last_subgoal, obs, goal)
 
