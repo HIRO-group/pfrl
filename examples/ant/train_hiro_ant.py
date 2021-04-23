@@ -120,7 +120,7 @@ def parse_rl_args():
         "--soft-subgoal-update",
         type=float,
         default=0.0,
-        help="Whether to soft update subgoal locations. 0 for no soft update, 0.95 to use 95 perc. of previous state",
+        help="Whether to soft-update the subgoal locations. 0 for no soft update, 0.95 to use 95 perc. of current state",
     )
 
     parser.add_argument("--num-envs", type=int, default=1, help="Number of envs run in parallel.")
