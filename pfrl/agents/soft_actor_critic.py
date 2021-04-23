@@ -120,6 +120,7 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
         entropy_target=None,
         temperature_optimizer_lr=None,
         act_deterministically=True,
+        use_sde=False,
     ):
 
         self.policy = policy
@@ -176,6 +177,7 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
             self.temperature_holder = None
             self.temperature_optimizer = None
         self.act_deterministically = act_deterministically
+        self.use_sde = use_sde
 
         self.t = 0
 
@@ -313,6 +315,8 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
     def update(self, experiences, errors_out=None):
         """Update the model from experiences"""
         batch = batch_experiences(experiences, self.device, self.phi, self.gamma)
+        if self.use_sde:
+            self.policy[-1].reset_noise()
         self.update_q_func(batch)
         self.update_policy_and_temperature(batch)
         self.sync_target_network()

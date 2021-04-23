@@ -495,9 +495,9 @@ class Evaluator(object):
         step_offset=0,
         save_best_so_far_agent=True,
         logger=None,
-        use_tensorboard=False,
         record=False,
-        record_freq=500000
+        record_freq=500000,
+        use_tensorboard=True,
     ):
         assert (n_steps is None) != (n_episodes is None), (
             "One of n_steps or n_episodes must be None. "
