@@ -116,6 +116,13 @@ def parse_rl_args():
         default=0.1,
         help="Choose which temperature to use for the entropy term",
     )
+    parser.add_argument(
+        "--soft-subgoal-update",
+        type=float,
+        default=0.0,
+        help="Whether to soft-update the subgoal locations. 0 for no soft update, 0.95 to use 95 perc. of current state",
+    )
+
     parser.add_argument("--num-envs", type=int, default=1, help="Number of envs run in parallel.")
     args = parser.parse_args()
     return args
@@ -205,6 +212,7 @@ def main():
                       goal_threshold=5,
                       gpu=gpu,
                       add_entropy_layer=args.add_entropy_layer,
+                      soft_subgoal_update=args.soft_subgoal_update,
                       temperature_high=args.temperature_high,
                       temperature_low=args.temperature_low)
 
