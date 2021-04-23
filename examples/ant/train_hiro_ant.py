@@ -105,13 +105,13 @@ def parse_rl_args():
         help="Choose which layer to add entropy (top, bottom, both, or None)",
     )
     parser.add_argument(
-        "--temperature_high",
+        "--temperature-high",
         type=float,
         default=1.0,
         help="Choose which temperature to use for the entropy term",
     )
     parser.add_argument(
-        "--temperature_low",
+        "--temperature-low",
         type=float,
         default=0.1,
         help="Choose which temperature to use for the entropy term",
