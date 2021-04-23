@@ -312,11 +312,17 @@ class HIROAgent(HRLAgent):
         success = error <= self.goal_threshold
         return success
 
+    def check_subgoal_pos_or_zeros(self, subgoal_pos):
+        return subgoal_pos if subgoal_pos else np.zeros(3)
+
     def get_statistics(self):
         """
         gets the statistics of all of the actors and critics for the high
         and low level controllers in the HIRO algorithm.
         """
+        cur_subgoal_pos = self.check_subgoal_pos_or_zeros(self.subgoal_position)
+        prev_subgoal_pos = self.check_subgoal_pos_or_zeros(self.prev_subgoal_position)
+
         return [
             ("low_con_average_q1", _mean_or_nan(self.low_con.agent.q1_record)),
             ("low_con_average_q2", _mean_or_nan(self.low_con.agent.q2_record)),
@@ -347,6 +353,14 @@ class HIROAgent(HRLAgent):
             ("final_x", self.last_x),
             ('final_y', self.last_y),
             ('final_z', self.last_z),
+
+            ('prev_subgoal_x', prev_subgoal_pos[0])
+            ('prev_subgoal_y', prev_subgoal_pos[1])
+            ('prev_subgoal_z', prev_subgoal_pos[2])
+
+            ('cur_subgoal_x', cur_subgoal_pos[0])
+            ('cur_subgoal_y', cur_subgoal_pos[1])
+            ('cur_subgoal_z', cur_subgoal_pos[2])
 
             # metrics for evaluating ll agent performance
             ('state_reached_diff', self.ll_performance_dict['state_reached_diff']),
