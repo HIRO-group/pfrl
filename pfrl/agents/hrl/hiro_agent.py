@@ -90,7 +90,7 @@ class HIROAgent(HRLAgent):
             gpu=gpu,
             burnin_action_func=low_level_burnin_action_func,
             add_entropy=low_entropy,
-            temperature_start=temperature_low_start
+            temperature_start=temperature_low_start,
             temperature_end=temperature_low_end
         )
 

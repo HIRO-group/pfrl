@@ -111,9 +111,15 @@ def parse_rl_args():
         help="Choose which temperature to use for the entropy term",
     )
     parser.add_argument(
-        "--temperature-low",
+        "--temperature-low-start",
         type=float,
         default=0.1,
+        help="Choose which temperature to use for the entropy term",
+    )
+    parser.add_argument(
+        "--temperature-low-end",
+        type=float,
+        default=0.01,
         help="Choose which temperature to use for the entropy term",
     )
     parser.add_argument(
@@ -214,7 +220,8 @@ def main():
                       add_entropy_layer=args.add_entropy_layer,
                       soft_subgoal_update=args.soft_subgoal_update,
                       temperature_high=args.temperature_high,
-                      temperature_low=args.temperature_low)
+                      temperature_low_start=args.temperature_low_start,
+                      temperature_low_end=args.temperature_low_end)
 
     if args.load:
         # load weights from a file if arg supplied

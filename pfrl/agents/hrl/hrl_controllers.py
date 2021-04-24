@@ -36,8 +36,8 @@ class HRLControllerBase():
             burnin_action_func=None,
             replay_start_size=2500,
             temperature=1.0,
-            temperature_start,
-            temperature_end):
+            temperature_start=None,
+            temperature_end=None):
         self.scale = scale
 
         if gpu is not None and gpu >= 0:
@@ -165,7 +165,7 @@ class HRLControllerBase():
                     scale=input_scale,
                     burnin_action_func=burnin_action_func,
                     target_policy_smoothing_func=default_target_policy_smoothing_func,
-                    entropy_temperature_start=temperature_start
+                    entropy_temperature_start=temperature_start,
                     entropy_temperature_end=temperature_end
                 )
             else:
@@ -191,6 +191,7 @@ class HRLControllerBase():
                     burnin_action_func=burnin_action_func,
                     target_policy_smoothing_func=default_target_policy_smoothing_func,
                     entropy_temperature=temperature
+                )
         else:
             self.agent = HIROHighLevelGoalConditionedTD3(
                 policy,
@@ -273,7 +274,9 @@ class LowerController(HRLControllerBase):
             minibatch_size=100,
             gpu=None,
             burnin_action_func=None,
-            temperature=1.0):
+            temperature=1.0,
+            temperature_start=0.1,
+            temperature_end=0.01):
         super(LowerController, self).__init__(
                                             state_dim=state_dim,
                                             goal_dim=goal_dim,
@@ -294,7 +297,9 @@ class LowerController(HRLControllerBase):
                                             gpu=gpu,
                                             add_entropy=add_entropy,
                                             burnin_action_func=burnin_action_func,
-                                            temperature=temperature)
+                                            temperature=temperature,
+                                            temperature_start=temperature_start,
+                                            temperature_end=temperature_end)
 
     def observe(self, n_s, g, r, done):
 

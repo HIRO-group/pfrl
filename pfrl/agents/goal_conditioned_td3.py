@@ -124,9 +124,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         target_policy_smoothing_func=default_target_policy_smoothing_func,
         add_entropy=False,
         scale=1,
-        entropy_temperature=1.0
-        entropy_temperature_start,
-        entropy_temperature_end
+        entropy_temperature=1.0,
+        entropy_temperature_start=1.0,
+        entropy_temperature_end=0.1
     ):
         self.t = 0
         self.buffer_freq = buffer_freq
