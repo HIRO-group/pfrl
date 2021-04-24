@@ -35,7 +35,9 @@ class HRLControllerBase():
             add_entropy,
             burnin_action_func=None,
             replay_start_size=2500,
-            temperature=1.0):
+            temperature=1.0,
+            temperature_start,
+            temperature_end):
         self.scale = scale
 
         if gpu is not None and gpu >= 0:
@@ -141,29 +143,54 @@ class HRLControllerBase():
 
         if self.is_low_level:
             # standard goal conditioned td3
-            self.agent = GoalConditionedTD3(
-                policy,
-                q_func1,
-                q_func2,
-                policy_optimizer,
-                q_func1_optimizer,
-                q_func2_optimizer,
-                replay_buffer,
-                gamma=gamma,
-                soft_update_tau=tau,
-                explorer=explorer,
-                update_interval=1,
-                policy_update_delay=policy_freq,
-                replay_start_size=replay_start_size,
-                buffer_freq=buffer_freq,
-                minibatch_size=minibatch_size,
-                gpu=gpu,
-                add_entropy=self.add_entropy,
-                scale=input_scale,
-                burnin_action_func=burnin_action_func,
-                target_policy_smoothing_func=default_target_policy_smoothing_func,
-                entropy_temperature=temperature
+            if temperature_start:
+                self.agent = GoalConditionedTD3(
+                    policy,
+                    q_func1,
+                    q_func2,
+                    policy_optimizer,
+                    q_func1_optimizer,
+                    q_func2_optimizer,
+                    replay_buffer,
+                    gamma=gamma,
+                    soft_update_tau=tau,
+                    explorer=explorer,
+                    update_interval=1,
+                    policy_update_delay=policy_freq,
+                    replay_start_size=replay_start_size,
+                    buffer_freq=buffer_freq,
+                    minibatch_size=minibatch_size,
+                    gpu=gpu,
+                    add_entropy=self.add_entropy,
+                    scale=input_scale,
+                    burnin_action_func=burnin_action_func,
+                    target_policy_smoothing_func=default_target_policy_smoothing_func,
+                    entropy_temperature_start=temperature_start
+                    entropy_temperature_end=temperature_end
                 )
+            else:
+                self.agent = GoalConditionedTD3(
+                    policy,
+                    q_func1,
+                    q_func2,
+                    policy_optimizer,
+                    q_func1_optimizer,
+                    q_func2_optimizer,
+                    replay_buffer,
+                    gamma=gamma,
+                    soft_update_tau=tau,
+                    explorer=explorer,
+                    update_interval=1,
+                    policy_update_delay=policy_freq,
+                    replay_start_size=replay_start_size,
+                    buffer_freq=buffer_freq,
+                    minibatch_size=minibatch_size,
+                    gpu=gpu,
+                    add_entropy=self.add_entropy,
+                    scale=input_scale,
+                    burnin_action_func=burnin_action_func,
+                    target_policy_smoothing_func=default_target_policy_smoothing_func,
+                    entropy_temperature=temperature
         else:
             self.agent = HIROHighLevelGoalConditionedTD3(
                 policy,

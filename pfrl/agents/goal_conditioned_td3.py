@@ -125,7 +125,10 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         add_entropy=False,
         scale=1,
         entropy_temperature=1.0
+        entropy_temperature_start,
+        entropy_temperature_end
     ):
+        self.t = 0
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
         self.recent_variance_size = recent_variance_size
@@ -133,8 +136,15 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.scale = scale
 
         if add_entropy:
-            self.temperature = entropy_temperature
-            print('Temperature:', self.temperature)
+            if entropy_temperature_start:
+                self.temperature = entropy_temperature_start
+                self.temperature_start = entropy_temperature_start
+                self.temperature_end = entropy_temperature_end
+                self.scale_temperature = True
+            else:
+                self.temperature = entropy_temperature
+                self.scale_temperature=False
+                print('Temperature:', self.temperature)
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
         self.q_func2_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
@@ -206,6 +216,12 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
                 )
 
             entropy_term = 0
+            temp = self.temperature
+            if self.scale_temperature:
+                if self.t > 1e6:
+                    temp = self.temperature_end
+                else:
+                    temp = self.temperature_start - self.t * (self.temperature_start-self.temperature_end)/1e6
             if self.add_entropy:
                 next_log_prob = next_action_distrib.log_prob(next_actions_normalized)
                 entropy_term = self.temperature * next_log_prob[..., None]

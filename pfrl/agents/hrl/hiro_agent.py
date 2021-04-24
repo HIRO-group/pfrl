@@ -37,7 +37,8 @@ class HIROAgent(HRLAgent):
                  soft_subgoal_update,
                  start_training_steps=2500,
                  temperature_high=1.0,
-                 temperature_low=0.1):
+                 temperature_low_start=0.1,
+                 temperature_low_end=0.01):
         """
         Constructor for the HIRO agent.
         """
@@ -86,7 +87,8 @@ class HIROAgent(HRLAgent):
             gpu=gpu,
             burnin_action_func=low_level_burnin_action_func,
             add_entropy=low_entropy,
-            temperature=temperature_low
+            temperature_start=temperature_low_start
+            temperature_end=temperature_low_end
         )
 
         self.subgoal_freq = subgoal_freq
@@ -146,6 +148,7 @@ class HIROAgent(HRLAgent):
         conditioned on an observation and goal.
         """
         self.last_obs = obs
+        self.low_con.agent.t += 1
 
         # action space is of low level, sent directly to env
         self.last_action = self.low_con.policy(obs, subgoal)
