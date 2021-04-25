@@ -45,6 +45,9 @@ class HIROAgent(HRLAgent):
         self.scale_high = scale_high
         self.scale_low = scale_low
 
+        self.subgoal_position = None
+        self.prev_subgoal_position = None
+
         # create replay buffers
         low_level_replay_buffer = LowerControllerReplayBuffer(buffer_size)
         high_level_replay_buffer = HigherControllerReplayBuffer(buffer_size)
@@ -321,7 +324,7 @@ class HIROAgent(HRLAgent):
         return success
 
     def check_subgoal_pos_or_zeros(self, subgoal_pos):
-        return subgoal_pos if subgoal_pos else np.zeros(3)
+        return subgoal_pos if subgoal_pos is not None else np.zeros(3)
 
     def get_statistics(self):
         """
@@ -362,13 +365,13 @@ class HIROAgent(HRLAgent):
             ('final_y', self.last_y),
             ('final_z', self.last_z),
 
-            ('prev_subgoal_x', prev_subgoal_pos[0])
-            ('prev_subgoal_y', prev_subgoal_pos[1])
-            ('prev_subgoal_z', prev_subgoal_pos[2])
+            ('prev_subgoal_x', prev_subgoal_pos[0]),
+            ('prev_subgoal_y', prev_subgoal_pos[1]),
+            ('prev_subgoal_z', prev_subgoal_pos[2]),
 
-            ('cur_subgoal_x', cur_subgoal_pos[0])
-            ('cur_subgoal_y', cur_subgoal_pos[1])
-            ('cur_subgoal_z', cur_subgoal_pos[2])
+            ('cur_subgoal_x', cur_subgoal_pos[0]),
+            ('cur_subgoal_y', cur_subgoal_pos[1]),
+            ('cur_subgoal_z', cur_subgoal_pos[2]),
 
             # metrics for evaluating ll agent performance
             ('state_reached_diff', self.ll_performance_dict['state_reached_diff']),
