@@ -101,7 +101,7 @@ def parse_rl_args():
     parser.add_argument(
         "--add-entropy-layer",
         type=str,
-        default='top',
+        default='both',
         help="Choose which layer to add entropy (top, bottom, both, or None)",
     )
     parser.add_argument(
@@ -125,7 +125,7 @@ def parse_rl_args():
     parser.add_argument(
         "--optimize-low-temp",
         action="store_true",
-        default=False,
+        default=True,
         help="Choose whether or not to optimize the temperature on the low level policy",
     )
 
