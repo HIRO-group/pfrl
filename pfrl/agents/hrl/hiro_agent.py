@@ -37,7 +37,9 @@ class HIROAgent(HRLAgent):
                  soft_subgoal_update,
                  start_training_steps=2500,
                  temperature_high=1.0,
-                 temperature_low=0.1):
+                 temperature_low=0.1,
+                 optimize_high_temp=False,
+                 optimize_low_temp=False):
         """
         Constructor for the HIRO agent.
         """
@@ -65,7 +67,6 @@ class HIROAgent(HRLAgent):
             high_entropy = False
             low_entropy = False
 
-
         # higher td3 controller
         self.high_con = HigherController(
             state_dim=state_dim,
@@ -76,7 +77,8 @@ class HIROAgent(HRLAgent):
             gpu=gpu,
             burnin_action_func=high_level_burnin_action_func,
             add_entropy=high_entropy,
-            temperature=temperature_high
+            temperature=temperature_high,
+            optimize_high_temp=optimize_high_temp
         )
 
         # lower td3 controller
@@ -89,7 +91,8 @@ class HIROAgent(HRLAgent):
             gpu=gpu,
             burnin_action_func=low_level_burnin_action_func,
             add_entropy=low_entropy,
-            temperature=temperature_low
+            temperature=temperature_low,
+            optimize_low_temp=optimize_low_temp
         )
 
         self.subgoal_freq = subgoal_freq
