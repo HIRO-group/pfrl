@@ -137,7 +137,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
                     self.temperature_holder.parameters()
                 )
             if gpu is not None and gpu >= 0:
-                self.temperature_holder.to(self.device)
+                device = torch.device("cuda:{}".format(gpu))
+                self.temperature_holder.to(device)
 
         if self.add_entropy and self.entropy_target is None:
             self.temperature = entropy_temperature
