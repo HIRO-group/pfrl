@@ -364,6 +364,13 @@ class HIROAgent(HRLAgent):
             ("high_con_policy_n_updates", self.high_con.agent.policy_n_updates),
             ("high_con_q_func_n_updates", self.high_con.agent.q_func_n_updates),
             ("high_con_policy_update_kldivergence", self.high_con.agent.kl_divergence),
+
+            ("high_con_temperature_mean", _mean_or_nan(self.high_con.agent.temperature_record)),
+            ("high_con_entropy_mean", _mean_or_nan(self.high_con.agent.entropy_record)),
+
+            ("low_con_temperature_mean", _mean_or_nan(self.low_con.agent.temperature_record)),
+            ("low_con_entropy_mean", _mean_or_nan(self.low_con.agent.entropy_record)),
+
             ("final_x", self.last_x),
             ('final_y', self.last_y),
             ('final_z', self.last_z),

@@ -149,6 +149,10 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.policy_gradients_variance_record = collections.deque(maxlen=policy_grad_variance_record_size)
         self.policy_gradients_mean_record = collections.deque(maxlen=policy_grad_variance_record_size)
 
+        self.entropy_record = collections.deque(maxlen=1000)
+        self.temperature_record = collections.deque(maxlen=1000)
+
+
         self.kl_divergence = 0.0
         self.one_step_kl_divergence = 0.0
         self.prior_policy = copy.deepcopy(policy)
@@ -289,7 +293,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
 
             if self.entropy_target is not None:
                 self.update_temperature(log_prob.detach())
-                print('Temperature:', self.temperature)
+
+            self.entropy_record.append(-float(torch.mean(entropy_term)))
+            self.temperature_record.append(self.temperature)
 
 
         q = self.q_func1((torch.cat([batch_state, batch_goal], -1), onpolicy_actions))
@@ -460,6 +466,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             ("q1_recent_variance", _mean_or_nan(self.q_func1_variance_record)),
             ("q2_recent_variance", _mean_or_nan(self.q_func2_variance_record)),
             ("policy_gradients_variance", _mean_or_nan(self.policy_gradients_variance_record)),
-            ("policy_gradients_mean", _mean_or_nan(self.policy_gradients_mean_record))
+            ("policy_gradients_mean", _mean_or_nan(self.policy_gradients_mean_record)),
+            ("temperature_mean", _mean_or_nan(self.temperature_record)),
+            ("entropy_mean", _mean_or_nan(self.entropy_record))
+
         ]
         return td3_statistics.extend(new_stats)
