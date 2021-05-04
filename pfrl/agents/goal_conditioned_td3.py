@@ -121,8 +121,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         else:
             self.entropy_target = None
 
-        initial_temperature = 1.0
-        temperature_optimizer_lr = 3e-4
+        initial_temperature = entropy_temperature
+        temperature_optimizer_lr = 3e-5
 
         if self.add_entropy and self.entropy_target is not None:
             self.temperature_holder = TemperatureHolder(
@@ -295,7 +295,7 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             if self.entropy_target is not None:
                 self.update_temperature(log_prob.detach())
 
-            self.entropy_record.append(-float(torch.mean(entropy_term)))
+            self.entropy_record.append(float(torch.mean(-entropy_term)))
             self.temperature_record.append(self.temperature)
 
 
