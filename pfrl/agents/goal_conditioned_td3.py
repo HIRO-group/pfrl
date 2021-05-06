@@ -121,12 +121,12 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         else:
             self.entropy_target = None
 
-        initial_temperature = entropy_temperature
+        self.initial_temperature = entropy_temperature
         temperature_optimizer_lr = 3e-5
 
         if self.add_entropy and self.entropy_target is not None:
             self.temperature_holder = TemperatureHolder(
-                initial_log_temperature=np.log(initial_temperature)
+                initial_log_temperature=np.log(self.initial_temperature)
             )
             if temperature_optimizer_lr is not None:
                 self.temperature_optimizer = torch.optim.Adam(
@@ -141,7 +141,6 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
                 self.temperature_holder.to(device)
 
         if self.add_entropy and self.entropy_target is None:
-            self.temperature = entropy_temperature
             print('Temperature:', self.temperature)
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
