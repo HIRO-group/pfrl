@@ -119,13 +119,13 @@ def parse_rl_args():
     parser.add_argument(
         "--optimize-high-temp",
         action="store_true",
-        default=True,
+        default=False,
         help="Choose whether or not to optimize the temperature on the high level policy",
     )
     parser.add_argument(
         "--optimize-low-temp",
         action="store_true",
-        default=True,
+        default=False,
         help="Choose whether or not to optimize the temperature on the low level policy",
     )
 
@@ -187,7 +187,6 @@ def main():
 
     env_state_dim = eval_env.state_dim
     env_action_dim = eval_env.action_dim
-
     env_subgoal_dim = eval_env.subgoal_dim
 
     # determined from the ant env
