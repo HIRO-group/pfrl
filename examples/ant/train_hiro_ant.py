@@ -101,7 +101,7 @@ def parse_rl_args():
     parser.add_argument(
         "--add-entropy-layer",
         type=str,
-        default='None',
+        default='both',
         help="Choose which layer to add entropy (top, bottom, both, or None)",
     )
     parser.add_argument(
@@ -116,6 +116,19 @@ def parse_rl_args():
         default=0.1,
         help="Choose which temperature to use for the entropy term",
     )
+    parser.add_argument(
+        "--optimize-high-temp",
+        action="store_true",
+        default=False,
+        help="Choose whether or not to optimize the temperature on the high level policy",
+    )
+    parser.add_argument(
+        "--optimize-low-temp",
+        action="store_true",
+        default=False,
+        help="Choose whether or not to optimize the temperature on the low level policy",
+    )
+
     parser.add_argument(
         "--soft-subgoal-update",
         type=float,
@@ -174,7 +187,6 @@ def main():
 
     env_state_dim = eval_env.state_dim
     env_action_dim = eval_env.action_dim
-
     env_subgoal_dim = eval_env.subgoal_dim
 
     # determined from the ant env
@@ -214,7 +226,9 @@ def main():
                       add_entropy_layer=args.add_entropy_layer,
                       soft_subgoal_update=args.soft_subgoal_update,
                       temperature_high=args.temperature_high,
-                      temperature_low=args.temperature_low)
+                      temperature_low=args.temperature_low,
+                      optimize_high_temp=args.optimize_high_temp,
+                      optimize_low_temp=args.optimize_low_temp)
 
     if args.load:
         # load weights from a file if arg supplied

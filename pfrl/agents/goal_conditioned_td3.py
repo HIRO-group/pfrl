@@ -16,29 +16,12 @@ from pfrl.utils import clip_l2_grad_norm_, _mean_or_nan
 
 from pfrl.utils.mode_of_distribution import mode_of_distribution
 
+from pfrl.agents.soft_actor_critic import TemperatureHolder
 
 def default_target_policy_smoothing_func(batch_action):
     """Add noises to actions for target policy smoothing."""
     noise = torch.clamp(0.2 * torch.randn_like(batch_action), -0.5, 0.5)
     return torch.clamp(batch_action + noise, -1, 1)
-
-
-class TemperatureHolder(nn.Module):
-    """Module that holds a temperature as a learnable value.
-
-    Args:
-        initial_log_temperature (float): Initial value of log(temperature).
-    """
-
-    def __init__(self, initial_log_temperature=0):
-        super().__init__()
-        self.log_temperature = nn.Parameter(
-            torch.tensor(initial_log_temperature, dtype=torch.float32)
-        )
-
-    def forward(self):
-        """Return a temperature as a torch.Tensor."""
-        return torch.exp(self.log_temperature)
 
 
 class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
@@ -124,7 +107,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         target_policy_smoothing_func=default_target_policy_smoothing_func,
         add_entropy=False,
         scale=1,
-        entropy_temperature=1.0
+        entropy_temperature=1.0,
+        optimize_temp=False
     ):
         self.buffer_freq = buffer_freq
         self.minibatch_size = minibatch_size
@@ -132,8 +116,31 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         self.add_entropy = add_entropy
         self.scale = scale
 
-        if add_entropy:
-            self.temperature = entropy_temperature
+        if optimize_temp:
+            self.entropy_target = -len(self.scale)
+        else:
+            self.entropy_target = None
+
+        self.initial_temperature = entropy_temperature
+        temperature_optimizer_lr = 3e-5
+
+        if self.add_entropy and self.entropy_target is not None:
+            self.temperature_holder = TemperatureHolder(
+                initial_log_temperature=np.log(self.initial_temperature)
+            )
+            if temperature_optimizer_lr is not None:
+                self.temperature_optimizer = torch.optim.Adam(
+                    self.temperature_holder.parameters(), lr=temperature_optimizer_lr
+                )
+            else:
+                self.temperature_optimizer = torch.optim.Adam(
+                    self.temperature_holder.parameters()
+                )
+            if gpu is not None and gpu >= 0:
+                device = torch.device("cuda:{}".format(gpu))
+                self.temperature_holder.to(device)
+
+        if self.add_entropy and self.entropy_target is None:
             print('Temperature:', self.temperature)
 
         self.q_func1_variance_record = collections.deque(maxlen=q_func_grad_variance_record_size)
@@ -141,6 +148,10 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
 
         self.policy_gradients_variance_record = collections.deque(maxlen=policy_grad_variance_record_size)
         self.policy_gradients_mean_record = collections.deque(maxlen=policy_grad_variance_record_size)
+
+        self.entropy_record = collections.deque(maxlen=1000)
+        self.temperature_record = collections.deque(maxlen=1000)
+
 
         self.kl_divergence = 0.0
         self.one_step_kl_divergence = 0.0
@@ -174,6 +185,23 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
                                                  burnin_action_func=burnin_action_func,
                                                  policy_update_delay=policy_update_delay,
                                                  target_policy_smoothing_func=target_policy_smoothing_func)
+
+    def update_temperature(self, log_prob):
+        assert not log_prob.requires_grad
+        loss = -torch.mean(self.temperature_holder() * (log_prob + self.entropy_target))
+        self.temperature_optimizer.zero_grad()
+        loss.backward()
+        if self.max_grad_norm is not None:
+            clip_l2_grad_norm_(self.temperature_holder.parameters(), self.max_grad_norm)
+        self.temperature_optimizer.step()
+
+    @property
+    def temperature(self):
+        if self.entropy_target is None:
+            return self.initial_temperature
+        else:
+            with torch.no_grad():
+                return float(self.temperature_holder())
 
     def update_q_func_with_goal(self, batch):
         """
@@ -262,6 +290,14 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
         if self.add_entropy:
             log_prob = action_distrib.log_prob(onpolicy_actions_normalized)
             entropy_term = self.temperature * log_prob[..., None]
+
+            if self.entropy_target is not None:
+                self.update_temperature(log_prob.detach())
+
+            self.entropy_record.append(float(torch.mean(-entropy_term)))
+            self.temperature_record.append(self.temperature)
+
+
         q = self.q_func1((torch.cat([batch_state, batch_goal], -1), onpolicy_actions))
 
         # Since we want to maximize Q, loss is negation of Q
@@ -295,6 +331,8 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
 
         self.prior_policy = copy.deepcopy(self.policy)
         # self.prior_policy = self.policy.clone()
+
+        
 
     def compute_kl(self, policy1, policy2,
                    batch_state, batch_goal) -> float:
@@ -428,6 +466,9 @@ class GoalConditionedTD3(TD3, GoalConditionedBatchAgent):
             ("q1_recent_variance", _mean_or_nan(self.q_func1_variance_record)),
             ("q2_recent_variance", _mean_or_nan(self.q_func2_variance_record)),
             ("policy_gradients_variance", _mean_or_nan(self.policy_gradients_variance_record)),
-            ("policy_gradients_mean", _mean_or_nan(self.policy_gradients_mean_record))
+            ("policy_gradients_mean", _mean_or_nan(self.policy_gradients_mean_record)),
+            ("temperature_mean", _mean_or_nan(self.temperature_record)),
+            ("entropy_mean", _mean_or_nan(self.entropy_record))
+
         ]
         return td3_statistics.extend(new_stats)
