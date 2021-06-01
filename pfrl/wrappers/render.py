@@ -38,7 +38,7 @@ class GymLikeEnvRender():
         self.state_dim = env.state_dim
         self.action_dim = env.action_dim
         self.subgoal_dim = env.subgoal_dim
-
+        self.metadata = env.metadata
         self.action_space = env.action_space
         self.subgoal_space = env.subgoal_space
 

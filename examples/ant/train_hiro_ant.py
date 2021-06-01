@@ -174,7 +174,7 @@ def main():
         env.seed(int(env_seed))
 
         if args.render:
-            env = pfrl.wrappers.GymLikeEnvRender(env)
+            env = pfrl.wrappers.GymLikeEnvRender(env, mode='human')
 
         return env
 
