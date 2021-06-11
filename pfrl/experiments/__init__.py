@@ -8,7 +8,10 @@ from pfrl.experiments.prepare_output_dir import generate_exp_id  # NOQA
 from pfrl.experiments.prepare_output_dir import prepare_output_dir  # NOQA
 
 from pfrl.experiments.train_agent import train_agent  # NOQA
+from pfrl.experiments.train_agent import train_goal_conditioned_agent  # NOQA
 from pfrl.experiments.train_agent import train_agent_with_evaluation  # NOQA
+from pfrl.experiments.train_agent import train_goal_conditioned_agent_with_evaluation  # NOQA
+
 from pfrl.experiments.train_agent_async import train_agent_async  # NOQA
 from pfrl.experiments.train_agent_batch import train_agent_batch  # NOQA
 from pfrl.experiments.train_agent_batch import train_agent_batch_with_evaluation  # NOQA

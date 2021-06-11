@@ -66,7 +66,7 @@ class HIROAgent(HRLAgent):
         else:
             high_entropy = False
             low_entropy = False
-
+        print(high_entropy, low_entropy)
         # higher td3 controller
         self.high_con = HigherController(
             state_dim=state_dim,
@@ -102,7 +102,7 @@ class HIROAgent(HRLAgent):
         self.start_training_steps = start_training_steps
         self.goal_threshold = goal_threshold
         self.soft_subgoal_update = soft_subgoal_update
-        
+
         self.sr = 0
         self.state_arr = []
         self.action_arr = []

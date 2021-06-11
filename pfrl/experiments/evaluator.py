@@ -2,7 +2,7 @@ import logging
 import multiprocessing as mp
 import os
 from pfrl.agent import HRLAgent
-from pfrl.agents import HIROAgent
+from pfrl.agents import HIROAgent, goal_conditioned_td3
 import statistics
 import time
 import numpy as np
@@ -44,22 +44,45 @@ def _run_episodes(
     scores = []
     terminate = False
     timestep = 0
+    success_rate = None
+    successes = 0
 
+    env.evaluate = True
+
+    goal_conditioned = False
     reset = True
     while not terminate:
         if reset:
             obs = env.reset()
+            if type(obs) == dict:
+                obs_dict = obs
+                fg = obs_dict['desired_goal']
+                obs = obs_dict['observation']
+                goal_conditioned = True
+
             done = False
             test_r = 0
             episode_len = 0
             info = {}
-        a = agent.act(obs)
+        if not goal_conditioned:
+            a = agent.act(obs)
+        else:
+            a = agent.act(np.concatenate([obs, fg]))
+
         obs, r, done, info = env.step(a)
+
+        if goal_conditioned:
+            obs = obs['observation']
         test_r += r
         episode_len += 1
         timestep += 1
         reset = done or episode_len == max_episode_len or info.get("needs_reset", False)
-        agent.observe(obs, r, done, reset)
+
+        if not goal_conditioned:
+            agent.observe(obs, r, done, reset)
+        else:
+            agent.observe(np.concatenate([obs, fg]), r, done, reset)
+
         if reset:
             logger.info(
                 "evaluation episode %s length:%s R:%s", len(scores), episode_len, test_r
@@ -67,6 +90,11 @@ def _run_episodes(
             # As mixing float and numpy float causes errors in statistics
             # functions, here every score is cast to float.
             scores.append(float(test_r))
+            if goal_conditioned:
+                success = agent.evaluate_final_goal(fg, obs)
+                successes += 1 if success else 0
+                logger.info(f"{successes} successes so far.")
+
         if n_steps is None:
             terminate = len(scores) >= n_episodes
         else:
@@ -77,8 +105,11 @@ def _run_episodes(
         logger.info(
             "evaluation episode %s length:%s R:%s", len(scores), episode_len, test_r
         )
+    if goal_conditioned:
+        success_rate = successes / n_episodes
+        logger.info(f"Success Rate: {success_rate}")
+        return scores, success_rate
     return scores
-
 
 def _hrl_run_episodes(
     env, agent: HIROAgent, n_steps, n_episodes, max_episode_len=None, logger=None,
