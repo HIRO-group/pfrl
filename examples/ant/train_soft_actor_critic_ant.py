@@ -63,7 +63,7 @@ def main():
         ),
     )
     parser.add_argument(
-        "--num-envs", type=int, default=4, help="Number of envs run in parallel."
+        "--num-envs", type=int, default=1, help="Number of envs run in parallel."
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed [0, 2 ** 32)")
     parser.add_argument(
