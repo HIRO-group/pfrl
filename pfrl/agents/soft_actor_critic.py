@@ -120,6 +120,7 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
         entropy_target=None,
         temperature_optimizer_lr=None,
         act_deterministically=True,
+        scale=1
     ):
 
         self.policy = policy
@@ -176,8 +177,9 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
             self.temperature_holder = None
             self.temperature_optimizer = None
         self.act_deterministically = act_deterministically
-
+        self.scale = scale
         self.t = 0
+        self.goal_threshold = 5
 
         # Target model
         self.target_q_func1 = copy.deepcopy(self.q_func1).eval().requires_grad_(False)
@@ -199,6 +201,19 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
             with torch.no_grad():
                 return float(self.temperature_holder())
 
+    def evaluate_final_goal(self, fg, obs):
+        """
+        evaluates the final goal compared with the current observation.
+        """
+        goal_size = fg.shape[0]
+        error = np.sqrt(np.sum(np.square(fg - obs[:goal_size])))
+        if goal_size == 2:
+            print('Goal, Curr: (%02.2f, %02.2f, %02.2f, %02.2f)     Error:%.2f'%(fg[0], fg[1], obs[0], obs[1], error))
+        elif goal_size == 3:
+            print('Goal, Curr: (%02.2f, %02.2f, %02.2f, %02.2f, %02.2f, %02.2f)     Error:%.2f'%(fg[0], fg[1], fg[2], obs[0], obs[1], obs[2], error))
+        success = error <= self.goal_threshold
+        return success
+
     def sync_target_network(self):
         """Synchronize target network with current network."""
         synchronize_parameters(
@@ -217,19 +232,23 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
     def update_q_func(self, batch):
         """Compute loss for a given Q-function."""
 
-        batch_next_state = batch["next_state"]
-        batch_rewards = batch["reward"]
-        batch_terminal = batch["is_state_terminal"]
-        batch_state = batch["state"]
-        batch_actions = batch["action"]
-        batch_discount = batch["discount"]
+        batch_next_state = batch["next_state"].float()
+        batch_rewards = batch["reward"].float()
+        batch_terminal = batch["is_state_terminal"].float()
+        batch_state = batch["state"].float()
+        batch_actions = batch["action"].float()
+        batch_discount = batch["discount"].float()
+
 
         with torch.no_grad(), pfrl.utils.evaluating(self.policy), pfrl.utils.evaluating(
             self.target_q_func1
         ), pfrl.utils.evaluating(self.target_q_func2):
-            next_action_distrib = self.policy(batch_next_state)
-            next_actions = next_action_distrib.sample()
-            next_log_prob = next_action_distrib.log_prob(next_actions)
+            next_action_distrib = self.policy(batch_next_state.float())
+
+            next_actions_normalized = next_action_distrib.sample()
+            next_actions = self.scale * next_actions_normalized
+
+            next_log_prob = next_action_distrib.log_prob(next_actions_normalized)
             next_q1 = self.target_q_func1((batch_next_state, next_actions))
             next_q2 = self.target_q_func2((batch_next_state, next_actions))
             next_q = torch.min(next_q1, next_q2)
@@ -276,11 +295,13 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
     def update_policy_and_temperature(self, batch):
         """Compute loss for actor."""
 
-        batch_state = batch["state"]
+        batch_state = batch["state"].float()
 
         action_distrib = self.policy(batch_state)
-        actions = action_distrib.rsample()
-        log_prob = action_distrib.log_prob(actions)
+
+        actions_normalized = action_distrib.rsample()
+        actions = self.scale * actions_normalized
+        log_prob = action_distrib.log_prob(actions_normalized)
         q1 = self.q_func1((batch_state, actions))
         q2 = self.q_func2((batch_state, actions))
         q = torch.min(q1, q2)
@@ -320,11 +341,17 @@ class SoftActorCritic(AttributeSavingMixin, BatchAgent):
     def batch_select_greedy_action(self, batch_obs, deterministic=False):
         with torch.no_grad(), pfrl.utils.evaluating(self.policy):
             batch_xs = self.batch_states(batch_obs, self.device, self.phi)
-            policy_out = self.policy(batch_xs)
+            policy_out = self.policy(batch_xs.float())
+
             if deterministic:
-                batch_action = mode_of_distribution(policy_out).cpu().numpy()
+                batch_action = mode_of_distribution(policy_out)
+                batch_action = self.scale * batch_action
+                batch_action = batch_action.cpu().numpy()
             else:
-                batch_action = policy_out.sample().cpu().numpy()
+                batch_action = policy_out.sample()
+                batch_action = self.scale * batch_action
+                batch_action = batch_action.cpu().numpy()
+
         return batch_action
 
     def batch_act(self, batch_obs):
