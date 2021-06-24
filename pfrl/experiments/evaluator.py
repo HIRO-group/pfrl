@@ -117,13 +117,10 @@ def _hrl_run_episodes(
 ):
     """Run multiple episodes and return returns."""
     assert (n_steps is None) != (n_episodes is None)
-
-
     evaluation_videos_dir = f'{video_outdir}/evaluation_videos'
     os.makedirs(evaluation_videos_dir, exist_ok=True)
     video_recorder = VideoRecorder(env, path=f'{evaluation_videos_dir}/evaluation_{step_number}.mp4')
     video_recorder.enabled = step_number is not None
-
     logger = logger or logging.getLogger(__name__)
     scores = []
     successes = 0
@@ -571,7 +568,7 @@ class Evaluator(object):
             self.n_episodes,
             max_episode_len=self.max_episode_len,
             logger=self.logger,
-            step_number=t if (self.record and record) else None,
+            step_number=t if (self.record) else None,
             video_outdir=self.outdir
         )
         elapsed = time.time() - self.start_time
